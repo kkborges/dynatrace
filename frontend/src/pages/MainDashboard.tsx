@@ -18,11 +18,12 @@ export const MainDashboard: React.FC = () => {
       setIsLoading(true);
       setError(null);
       const data = await DynatraceAPI.getAvailabilityDashboard();
+      console.log('Availability data received:', data);
       setAvailability(data);
       setRefreshTime(new Date().toLocaleTimeString());
     } catch (err) {
       setError('Failed to load availability metrics. Please try again.');
-      console.error(err);
+      console.error('Error loading availability:', err);
     } finally {
       setIsLoading(false);
     }
@@ -30,15 +31,61 @@ export const MainDashboard: React.FC = () => {
 
   const getMetricValue = (data: Record<string, unknown>): string => {
     if (!data) return 'N/A';
+
+    console.log('Processing metric data:', data);
+
+    // Handle the Dynatrace API response structure
     const result = (data.result || []) as Array<{
-      values: Array<(number | null)[]>;
+      data?: Array<{
+        values?: Array<(number | null)[]>;
+        points?: Array<{ value: number; timestamp: number }>;
+      }>;
+      values?: Array<(number | null)[]>;
+      points?: Array<{ value: number; timestamp: number }>;
     }>;
-    if (result.length > 0 && result[0].values && result[0].values.length > 0) {
-      const lastValue = result[0].values[result[0].values.length - 1];
-      if (lastValue && lastValue[0] !== null) {
+
+    if (result.length === 0) {
+      return 'N/A';
+    }
+
+    const resultItem = result[0];
+
+    // Try to get data from nested structure first (result[0].data[0].values)
+    if (resultItem.data && Array.isArray(resultItem.data) && resultItem.data.length > 0) {
+      const dataItem = resultItem.data[0];
+
+      // Try new structure (data[].points)
+      if (dataItem.points && Array.isArray(dataItem.points) && dataItem.points.length > 0) {
+        const lastPoint = dataItem.points[dataItem.points.length - 1];
+        if (lastPoint && lastPoint.value !== null) {
+          return (lastPoint.value as number).toFixed(2);
+        }
+      }
+
+      // Try old structure (data[].values)
+      if (dataItem.values && Array.isArray(dataItem.values) && dataItem.values.length > 0) {
+        const lastValue = dataItem.values[dataItem.values.length - 1];
+        if (lastValue && Array.isArray(lastValue) && lastValue[0] !== null) {
+          return (lastValue[0] as number).toFixed(2);
+        }
+      }
+    }
+
+    // Try direct structure (result[0].values or result[0].points) if nested not found
+    if (resultItem.points && Array.isArray(resultItem.points) && resultItem.points.length > 0) {
+      const lastPoint = resultItem.points[resultItem.points.length - 1];
+      if (lastPoint && lastPoint.value !== null) {
+        return (lastPoint.value as number).toFixed(2);
+      }
+    }
+
+    if (resultItem.values && Array.isArray(resultItem.values) && resultItem.values.length > 0) {
+      const lastValue = resultItem.values[resultItem.values.length - 1];
+      if (lastValue && Array.isArray(lastValue) && lastValue[0] !== null) {
         return (lastValue[0] as number).toFixed(2);
       }
     }
+
     return 'N/A';
   };
 

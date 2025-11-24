@@ -92,14 +92,15 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
         ) : filteredMetrics.length === 0 ? (
           <div className="no-results">No metrics match your search</div>
         ) : (
-          filteredMetrics.map((metric) => {
+          filteredMetrics.map((metric, index) => {
             const metricKey = metric.key || metric.name || '';
+            const uniqueKey = metricKey ? `${metricKey}-${index}` : `metric-${index}`;
             const hasError = validationErrors[metricKey];
             const isValidating = validatingMetric === metricKey;
             const isSelected = selectedMetrics.includes(metricKey);
 
             return (
-              <div key={metricKey} className={`metric-item ${hasError ? 'error' : ''}`}>
+              <div key={uniqueKey} className={`metric-item ${hasError ? 'error' : ''}`}>
                 <label className="metric-label">
                   <input
                     type="checkbox"
