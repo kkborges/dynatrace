@@ -37,8 +37,11 @@ class DynatraceClient:
             all_metrics = []
             next_page_key: Optional[str] = None
             url = f"{self.base_url}/api/v2/metrics"
+            page_count = 0
+            max_pages = 200  # Safety limit to prevent infinite loops
+            previous_count = 0
 
-            while True:
+            while page_count < max_pages:
                 params = {}
                 if next_page_key:
                     params["pageKey"] = next_page_key
@@ -48,14 +51,32 @@ class DynatraceClient:
 
                 data = response.json()
                 metrics = data.get("metrics", [])
-                all_metrics.extend(metrics)
 
-                print(f"Fetched {len(metrics)} metrics, total so far: {len(all_metrics)}")
+                # If no metrics returned, we've reached the end
+                if not metrics:
+                    print(f"No more metrics found. Stopping pagination.")
+                    break
+
+                all_metrics.extend(metrics)
+                page_count += 1
+
+                print(f"Page {page_count}: Fetched {len(metrics)} metrics, total so far: {len(all_metrics)}")
+
+                # Check if we got the same count (duplicate page)
+                if len(all_metrics) == previous_count:
+                    print(f"Warning: Duplicate metrics detected. Stopping pagination.")
+                    break
+
+                previous_count = len(all_metrics)
 
                 # Check if there are more pages
                 next_page_key = data.get("nextPageKey")
                 if not next_page_key:
+                    print(f"Pagination complete. No more pages.")
                     break
+
+            if page_count >= max_pages:
+                print(f"Warning: Reached maximum page limit ({max_pages}). There may be more metrics available.")
 
             # Create the final structure with all metrics
             metrics_data = {
