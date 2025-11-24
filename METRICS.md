@@ -132,31 +132,50 @@ curl -H "Api-Token: $API_TOKEN" \
 
 ## Availability Dashboard Configuration
 
-The main dashboard displays three key availability metrics:
+The main dashboard displays three key availability metrics automatically calculated from Dynatrace data:
 
-### Current Metrics
-- **Host Availability**: `builtin:host.availability` - Percentage of hosts available
-- **Application Availability**: `builtin:app.web.httpRequests.overall` - Total HTTP requests (requires custom calculation for true availability)
-- **Service Availability**: `builtin:service.requestCount.total` - Total service requests (requires custom calculation for true availability)
+### Current Implementation
+- **Host Availability**: `builtin:host.availability` - Direct percentage from Dynatrace
+- **Application Availability**: Calculated as `(successful_requests / overall_requests) * 100`
+  - Sources: `builtin:app.web.httpRequests.successful` and `builtin:app.web.httpRequests.overall`
+  - Falls back to total request count if success metric unavailable
+- **Service Availability**: Calculated as `((total_requests - error_count) / total_requests) * 100`
+  - Sources: `builtin:service.requestCount.total` and `builtin:service.errorCount.total`
+  - Falls back to total request count if error metric unavailable
 
-### Recommended Alternatives
-If you want to display true availability percentages instead of request counts, consider these alternatives:
+### How Availability Metrics Work
 
-**For Applications:**
-- Use `builtin:app.web.httpRequests.successful` divided by `builtin:app.web.httpRequests.overall` to calculate success rate
-- Monitor `builtin:app.web.httpRequests.serverErrors` as an inverse availability indicator
-- Use service-level monitoring metrics if you have SyntheticMonitor data available
+**Application Success Rate:**
+The dashboard automatically calculates application availability by comparing successful HTTP requests to total requests:
+1. Fetches `builtin:app.web.httpRequests.successful` (successful requests)
+2. Fetches `builtin:app.web.httpRequests.overall` (total requests)
+3. Calculates: (successful / total) × 100 = percentage
+4. If either metric is unavailable, displays total request count as fallback
 
-**For Services:**
-- Use `builtin:service.errorCount.total` divided by `builtin:service.requestCount.total` to calculate error rate
-- Calculate availability as: `(total_requests - error_requests) / total_requests * 100`
-- Monitor `builtin:service.responseTime` to detect service degradation
+**Service Success Rate:**
+The dashboard calculates service availability by comparing total requests to errors:
+1. Fetches `builtin:service.requestCount.total` (total requests)
+2. Fetches `builtin:service.errorCount.total` (error count)
+3. Calculates: ((total - errors) / total) × 100 = percentage
+4. Clamps result to 0-100 range
+5. If either metric is unavailable, displays total request count as fallback
 
-### Custom Dashboard Metrics
-You can customize the availability metrics by modifying `backend/dynatrace_client.py`:
-- Edit `get_application_availability()` to use a different metric
-- Edit `get_service_availability()` to use a different metric
-- Or create a custom calculation combining multiple metrics
+### Customizing Availability Metrics
+
+To modify the availability calculations, edit `backend/dynatrace_client.py`:
+
+**For Applications**, modify the `get_application_availability()` method:
+- Change which metrics are fetched in the `get_metric_data()` calls
+- Modify the calculation logic in `_calculate_success_rate()`
+
+**For Services**, modify the `get_service_availability()` method:
+- Change which metrics are fetched in the `get_metric_data()` calls
+- Modify the calculation logic in `_calculate_availability_from_errors()`
+
+**To add different metrics entirely**, use these helper methods as patterns:
+- `_extract_latest_value()` - Extracts the most recent value from any metric response
+- `_calculate_success_rate()` - Template for calculating percentages from two metrics
+- `_calculate_availability_from_errors()` - Template for calculating from count difference
 
 ## Troubleshooting
 
