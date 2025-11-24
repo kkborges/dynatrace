@@ -81,7 +81,7 @@ async def get_metrics_list():
 async def get_metric_data(request: MetricRequest):
     """Get metric data for a specific metric"""
     try:
-        data = dynatrace_client.get_metric_time_series(
+        data = dynatrace_client.get_metric_data(
             metric_key=request.metric_key,
             start_timestamp=request.start_timestamp,
             end_timestamp=request.end_timestamp,
@@ -117,7 +117,7 @@ async def test_dashboard_metrics(config: DashboardConfig):
 
         for metric in config.metrics:
             try:
-                data = dynatrace_client.get_metric_time_series(
+                data = dynatrace_client.get_metric_data(
                     metric_key=metric.metric_key,
                     start_timestamp=metric.start_timestamp,
                     end_timestamp=metric.end_timestamp,
