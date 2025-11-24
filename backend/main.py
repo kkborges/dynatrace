@@ -1,7 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.base import BaseHTTPMiddleware
-from fastapi.responses import JSONResponse
 import uvicorn
 from typing import Optional, List
 from datetime import datetime, timedelta
