@@ -129,11 +129,16 @@ class DynatraceClient:
         """Fetch metric data for a specific metric using metrics/query endpoint"""
         try:
             url = f"{self.base_url}/api/v2/metrics/query"
+
+            # Convert timestamps from milliseconds to ISO 8601 format
+            from_iso = self._timestamp_to_iso8601(start_timestamp)
+            to_iso = self._timestamp_to_iso8601(end_timestamp)
+
             params = {
                 "metricSelector": metric_key,
                 "resolution": resolution,
-                "from": start_timestamp,
-                "to": end_timestamp,
+                "from": from_iso,
+                "to": to_iso,
             }
 
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
@@ -148,6 +153,20 @@ class DynatraceClient:
         except Exception as e:
             print(f"Error fetching metric data: {e}")
             return {}
+
+    def _timestamp_to_iso8601(self, timestamp_ms: int) -> str:
+        """Convert timestamp in milliseconds to ISO 8601 format"""
+        try:
+            # Convert milliseconds to seconds
+            timestamp_sec = timestamp_ms / 1000
+            # Create datetime object and format as ISO 8601
+            dt = datetime.fromtimestamp(timestamp_sec)
+            # Return ISO 8601 format without microseconds
+            return dt.strftime('%Y-%m-%dT%H:%M:%S')
+        except Exception as e:
+            print(f"Error converting timestamp: {e}")
+            # Fallback to current time
+            return datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
     def _resolve_entity_ids(self, metric_data: Dict[str, Any]) -> None:
         """Resolve entity IDs to display names in metric data"""
