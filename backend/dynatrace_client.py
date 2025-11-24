@@ -254,9 +254,8 @@ class DynatraceClient:
             print(f"Error fetching entity async {entity_id}: {e}")
 
     def get_host_availability(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
-        """Get host availability metrics"""
+        """Get host availability metric"""
         try:
-            # If no time range provided, use last hour
             if start_timestamp is None or end_timestamp is None:
                 import time
                 now = int(time.time() * 1000)
@@ -273,94 +272,70 @@ class DynatraceClient:
             print(f"Error fetching host availability: {e}")
             return {}
 
-    def get_application_availability(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
-        """Get application availability metrics (success rate)"""
+    def get_host_cpu_usage(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
+        """Get host CPU usage metric"""
         try:
-            # If no time range provided, use last hour
             if start_timestamp is None or end_timestamp is None:
                 import time
                 now = int(time.time() * 1000)
                 start_timestamp = now - (60 * 60 * 1000)  # Last hour
                 end_timestamp = now
 
-            # Try to get success rate metric first (best indicator of availability)
-            # If not available, fall back to server errors (inverse indicator)
-            print("Fetching application availability...")
-            try:
-                # Fetch successful requests
-                successful_data = self.get_metric_data(
-                    "builtin:app.web.httpRequests.successful",
-                    start_timestamp,
-                    end_timestamp,
-                    "1m"
-                )
-
-                # Fetch overall requests
-                overall_data = self.get_metric_data(
-                    "builtin:app.web.httpRequests.overall",
-                    start_timestamp,
-                    end_timestamp,
-                    "1m"
-                )
-
-                # Calculate success rate as percentage
-                return self._calculate_success_rate(successful_data, overall_data)
-            except:
-                # Fall back to just overall requests if success metric not available
-                print("Couldn't calculate success rate, using overall requests as fallback")
-                return self.get_metric_data(
-                    "builtin:app.web.httpRequests.overall",
-                    start_timestamp,
-                    end_timestamp,
-                    "1m"
-                )
+            return self.get_metric_data(
+                "builtin:host.cpu.usage",
+                start_timestamp,
+                end_timestamp,
+                "1m"
+            )
         except Exception as e:
-            print(f"Error fetching application availability: {e}")
+            print(f"Error fetching host CPU usage: {e}")
             return {}
+
+    def get_host_memory_usage(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
+        """Get host memory usage metric"""
+        try:
+            if start_timestamp is None or end_timestamp is None:
+                import time
+                now = int(time.time() * 1000)
+                start_timestamp = now - (60 * 60 * 1000)  # Last hour
+                end_timestamp = now
+
+            return self.get_metric_data(
+                "builtin:host.mem.usage",
+                start_timestamp,
+                end_timestamp,
+                "1m"
+            )
+        except Exception as e:
+            print(f"Error fetching host memory usage: {e}")
+            return {}
+
+    def get_host_network_connectivity(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
+        """Get host network connectivity metric"""
+        try:
+            if start_timestamp is None or end_timestamp is None:
+                import time
+                now = int(time.time() * 1000)
+                start_timestamp = now - (60 * 60 * 1000)  # Last hour
+                end_timestamp = now
+
+            return self.get_metric_data(
+                "builtin:host.net.nic.connectivity",
+                start_timestamp,
+                end_timestamp,
+                "1m"
+            )
+        except Exception as e:
+            print(f"Error fetching host network connectivity: {e}")
+            return {}
+
+    def get_application_availability(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
+        """Deprecated - use get_host_cpu_usage instead"""
+        return self.get_host_cpu_usage(start_timestamp, end_timestamp)
 
     def get_service_availability(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
-        """Get service availability metrics (success rate)"""
-        try:
-            # If no time range provided, use last hour
-            if start_timestamp is None or end_timestamp is None:
-                import time
-                now = int(time.time() * 1000)
-                start_timestamp = now - (60 * 60 * 1000)  # Last hour
-                end_timestamp = now
-
-            # Try to calculate availability from error rate
-            print("Fetching service availability...")
-            try:
-                # Fetch total requests
-                total_data = self.get_metric_data(
-                    "builtin:service.requestCount.total",
-                    start_timestamp,
-                    end_timestamp,
-                    "1m"
-                )
-
-                # Fetch error count
-                error_data = self.get_metric_data(
-                    "builtin:service.errorCount.total",
-                    start_timestamp,
-                    end_timestamp,
-                    "1m"
-                )
-
-                # Calculate success rate from error count
-                return self._calculate_availability_from_errors(total_data, error_data)
-            except:
-                # Fall back to just request count if error metric not available
-                print("Couldn't calculate from errors, using request count as fallback")
-                return self.get_metric_data(
-                    "builtin:service.requestCount.total",
-                    start_timestamp,
-                    end_timestamp,
-                    "1m"
-                )
-        except Exception as e:
-            print(f"Error fetching service availability: {e}")
-            return {}
+        """Deprecated - use get_host_memory_usage instead"""
+        return self.get_host_memory_usage(start_timestamp, end_timestamp)
 
     def _calculate_success_rate(self, successful_data: Dict[str, Any], overall_data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate success rate from successful and overall requests"""

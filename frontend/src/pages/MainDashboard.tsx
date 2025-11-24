@@ -1,29 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import DynatraceAPI from '../services/api';
-import { AvailabilityMetrics } from '../types';
 import './MainDashboard.css';
 
+interface HostMetrics {
+  availability: Record<string, unknown>;
+  cpu_usage: Record<string, unknown>;
+  memory_usage: Record<string, unknown>;
+  network_connectivity: Record<string, unknown>;
+}
+
 export const MainDashboard: React.FC = () => {
-  const [availability, setAvailability] = useState<AvailabilityMetrics | null>(null);
+  const [metrics, setMetrics] = useState<HostMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTime, setRefreshTime] = useState<string>(new Date().toLocaleTimeString());
 
   useEffect(() => {
-    loadAvailability();
+    loadMetrics();
   }, []);
 
-  const loadAvailability = async () => {
+  const loadMetrics = async () => {
     try {
       setIsLoading(true);
       setError(null);
       const data = await DynatraceAPI.getAvailabilityDashboard();
-      console.log('Availability data received:', data);
-      setAvailability(data);
+      console.log('Dashboard metrics received:', data);
+      setMetrics(data);
       setRefreshTime(new Date().toLocaleTimeString());
     } catch (err) {
-      setError('Failed to load availability metrics. Please try again.');
-      console.error('Error loading availability:', err);
+      setError('Failed to load dashboard metrics. Please try again.');
+      console.error('Error loading metrics:', err);
     } finally {
       setIsLoading(false);
     }
@@ -109,9 +115,9 @@ export const MainDashboard: React.FC = () => {
   return (
     <div className="main-dashboard">
       <div className="dashboard-header">
-        <h2>Availability Dashboard</h2>
+        <h2>Host Metrics Dashboard</h2>
         <div className="dashboard-controls">
-          <button onClick={loadAvailability} className="refresh-button">
+          <button onClick={loadMetrics} className="refresh-button">
             🔄 Refresh
           </button>
           <span className="last-refresh">Last refresh: {refreshTime}</span>
@@ -121,7 +127,7 @@ export const MainDashboard: React.FC = () => {
       {error && (
         <div className="alert alert-danger">
           {error}
-          <button onClick={loadAvailability} className="retry-button">
+          <button onClick={loadMetrics} className="retry-button">
             Retry
           </button>
         </div>
@@ -131,51 +137,68 @@ export const MainDashboard: React.FC = () => {
         <div className="metric-card">
           <div className="metric-header">
             <h3>Host Availability</h3>
-            {availability && (
-              <span className={`status-badge ${getStatusBadge(getMetricValue(availability.hosts as Record<string, unknown>))}`}>
-                {getStatusBadge(getMetricValue(availability.hosts as Record<string, unknown>))}
+            {metrics && (
+              <span className={`status-badge ${getStatusBadge(getMetricValue(metrics.availability))}`}>
+                {getStatusBadge(getMetricValue(metrics.availability))}
               </span>
             )}
           </div>
           <div className="metric-value">
-            {availability ? getMetricValue(availability.hosts as Record<string, unknown>) : 'N/A'}%
+            {metrics ? getMetricValue(metrics.availability) : 'N/A'}%
           </div>
           <div className="metric-description">
-            Percentage of hosts currently available and responsive
+            Percentage of hosts currently available
           </div>
         </div>
 
         <div className="metric-card">
           <div className="metric-header">
-            <h3>Application Availability</h3>
-            {availability && (
-              <span className={`status-badge ${getStatusBadge(getMetricValue(availability.applications as Record<string, unknown>))}`}>
-                {getStatusBadge(getMetricValue(availability.applications as Record<string, unknown>))}
+            <h3>CPU Usage</h3>
+            {metrics && (
+              <span className={`status-badge ${getStatusBadge(getMetricValue(metrics.cpu_usage))}`}>
+                {getStatusBadge(getMetricValue(metrics.cpu_usage))}
               </span>
             )}
           </div>
           <div className="metric-value">
-            {availability ? getMetricValue(availability.applications as Record<string, unknown>) : 'N/A'}%
+            {metrics ? getMetricValue(metrics.cpu_usage) : 'N/A'}%
           </div>
           <div className="metric-description">
-            Percentage of applications currently available
+            Average CPU usage across all hosts
           </div>
         </div>
 
         <div className="metric-card">
           <div className="metric-header">
-            <h3>Service Availability</h3>
-            {availability && (
-              <span className={`status-badge ${getStatusBadge(getMetricValue(availability.services as Record<string, unknown>))}`}>
-                {getStatusBadge(getMetricValue(availability.services as Record<string, unknown>))}
+            <h3>Memory Usage</h3>
+            {metrics && (
+              <span className={`status-badge ${getStatusBadge(getMetricValue(metrics.memory_usage))}`}>
+                {getStatusBadge(getMetricValue(metrics.memory_usage))}
               </span>
             )}
           </div>
           <div className="metric-value">
-            {availability ? getMetricValue(availability.services as Record<string, unknown>) : 'N/A'}%
+            {metrics ? getMetricValue(metrics.memory_usage) : 'N/A'}%
           </div>
           <div className="metric-description">
-            Percentage of services currently available and responding
+            Average memory usage across all hosts
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-header">
+            <h3>Network Connectivity</h3>
+            {metrics && (
+              <span className={`status-badge ${getStatusBadge(getMetricValue(metrics.network_connectivity))}`}>
+                {getStatusBadge(getMetricValue(metrics.network_connectivity))}
+              </span>
+            )}
+          </div>
+          <div className="metric-value">
+            {metrics ? getMetricValue(metrics.network_connectivity) : 'N/A'}%
+          </div>
+          <div className="metric-description">
+            Network interface connectivity status
           </div>
         </div>
       </div>
