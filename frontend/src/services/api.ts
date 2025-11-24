@@ -13,7 +13,7 @@ class DynatraceAPI {
       headers: {
         'Content-Type': 'application/json',
       },
-      timeout: 30000,
+      timeout: 300000, // 5 minutes timeout for long-running operations like metrics refresh
     });
 
     // Add response interceptor for better error handling

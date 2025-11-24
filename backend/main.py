@@ -1,9 +1,10 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from typing import Optional, List
 from datetime import datetime, timedelta
 import time
+import threading
 
 from config import settings
 from dynatrace_client import DynatraceClient
@@ -56,13 +57,41 @@ async def validate_dynatrace_connection():
 
 
 @app.post("/api/metrics/refresh")
-async def refresh_metrics():
-    """Refresh all metrics from Dynatrace API"""
+async def refresh_metrics(background_tasks: BackgroundTasks):
+    """Refresh all metrics from Dynatrace API (async)"""
     try:
-        metrics = dynatrace_client.get_all_metrics()
-        return {"status": "success", "metrics_count": len(metrics.get("metrics", []))}
+        # Check if refresh is already in progress
+        if hasattr(refresh_metrics, '_is_running') and refresh_metrics._is_running:
+            return {
+                "status": "in_progress",
+                "message": "Metrics refresh is already in progress. Please wait..."
+            }
+
+        # Start async refresh in background
+        refresh_metrics._is_running = True
+
+        def refresh_in_background():
+            try:
+                print("Starting metrics refresh in background...")
+                metrics = dynatrace_client.get_all_metrics()
+                metrics_count = len(metrics.get("metrics", []))
+                print(f"Metrics refresh completed: {metrics_count} metrics")
+                refresh_metrics._is_running = False
+            except Exception as e:
+                print(f"Error in background metrics refresh: {e}")
+                refresh_metrics._is_running = False
+
+        # Run in background thread to not block the response
+        thread = threading.Thread(target=refresh_in_background, daemon=True)
+        thread.start()
+
+        return {
+            "status": "started",
+            "message": "Metrics refresh started in background. Check metrics list after a moment."
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error refreshing metrics: {str(e)}")
+        refresh_metrics._is_running = False
+        raise HTTPException(status_code=500, detail=f"Error starting metrics refresh: {str(e)}")
 
 
 @app.get("/api/metrics/list")

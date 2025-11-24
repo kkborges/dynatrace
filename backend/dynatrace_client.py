@@ -34,15 +34,28 @@ class DynatraceClient:
     def get_all_metrics(self) -> Dict[str, Any]:
         """Fetch all available metrics from Dynatrace API v2 with pagination"""
         try:
+            import time as time_module
+
             all_metrics = []
             next_page_key: Optional[str] = None
             url = f"{self.base_url}/api/v2/metrics"
             page_count = 0
-            max_pages = 200  # Safety limit to prevent infinite loops
+            max_pages = 500  # Dynatrace has many metrics, increase limit
             previous_count = 0
+            start_time = time_module.time()
+            max_duration = 300  # 5 minute timeout
+            page_size = 500  # Request 500 metrics per page instead of 100
+
+            print(f"Starting metrics fetch with max timeout of {max_duration} seconds...")
 
             while page_count < max_pages:
-                params = {}
+                # Check timeout
+                elapsed = time_module.time() - start_time
+                if elapsed > max_duration:
+                    print(f"Timeout reached ({elapsed:.0f}s). Stopping pagination.")
+                    break
+
+                params = {"pageSize": page_size}
                 if next_page_key:
                     params["pageKey"] = next_page_key
 
@@ -57,10 +70,16 @@ class DynatraceClient:
                     print(f"No more metrics found. Stopping pagination.")
                     break
 
-                all_metrics.extend(metrics)
+                # Filter to only include builtin metrics (official Dynatrace metrics)
+                builtin_metrics = [m for m in metrics if isinstance(m, dict) and m.get("metricId", "").startswith("builtin:")]
+                if not builtin_metrics:
+                    builtin_metrics = metrics  # If no dict format, keep all
+
+                all_metrics.extend(builtin_metrics)
                 page_count += 1
 
-                print(f"Page {page_count}: Fetched {len(metrics)} metrics, total so far: {len(all_metrics)}")
+                elapsed = time_module.time() - start_time
+                print(f"Page {page_count}: Fetched {len(builtin_metrics)} metrics in {elapsed:.1f}s, total so far: {len(all_metrics)}")
 
                 # Check if we got the same count (duplicate page)
                 if len(all_metrics) == previous_count:
@@ -72,15 +91,17 @@ class DynatraceClient:
                 # Check if there are more pages
                 next_page_key = data.get("nextPageKey")
                 if not next_page_key:
-                    print(f"Pagination complete. No more pages.")
+                    print(f"Pagination complete. No more pages after {page_count} pages.")
                     break
 
             if page_count >= max_pages:
                 print(f"Warning: Reached maximum page limit ({max_pages}). There may be more metrics available.")
 
+            print(f"Metrics fetch complete: {len(all_metrics)} metrics in {page_count} pages, {time_module.time() - start_time:.1f}s total")
+
             # Create the final structure with all metrics
             metrics_data = {
-                "totalCount": data.get("totalCount", len(all_metrics)),
+                "totalCount": len(all_metrics),
                 "metrics": all_metrics,
             }
 
