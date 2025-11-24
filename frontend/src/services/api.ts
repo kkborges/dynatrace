@@ -1,16 +1,39 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
+import config from '../config';
 import { Metric, MetricData, AvailabilityMetrics, TestResult } from '../types';
 
 class DynatraceAPI {
   private api: AxiosInstance;
 
   constructor() {
+    const baseURL = config.apiUrl.endsWith('/api') ? config.apiUrl : `${config.apiUrl}/api`;
+
     this.api = axios.create({
-      baseURL: '/api',
+      baseURL,
       headers: {
         'Content-Type': 'application/json',
       },
+      timeout: 30000,
     });
+
+    // Add response interceptor for better error handling
+    this.api.interceptors.response.use(
+      response => response,
+      error => {
+        this.handleError(error);
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  private handleError(error: AxiosError) {
+    if (error.response) {
+      console.error(`API Error: ${error.response.status}`, error.response.data);
+    } else if (error.request) {
+      console.error('No response from server:', error.request);
+    } else {
+      console.error('Error:', error.message);
+    }
   }
 
   // Health check
