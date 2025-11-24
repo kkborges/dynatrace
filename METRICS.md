@@ -130,52 +130,84 @@ curl -H "Api-Token: $API_TOKEN" \
   "$TENANT_URL/api/v2/metrics?pageSize=100&pageKey=<nextPageKey_value>"
 ```
 
-## Availability Dashboard Configuration
+## Host Metrics Dashboard
 
-The main dashboard displays three key availability metrics automatically calculated from Dynatrace data:
+The main dashboard displays four key host metrics from your Dynatrace environment:
 
-### Current Implementation
-- **Host Availability**: `builtin:host.availability` - Direct percentage from Dynatrace
-- **Application Availability**: Calculated as `(successful_requests / overall_requests) * 100`
-  - Sources: `builtin:app.web.httpRequests.successful` and `builtin:app.web.httpRequests.overall`
-  - Falls back to total request count if success metric unavailable
-- **Service Availability**: Calculated as `((total_requests - error_count) / total_requests) * 100`
-  - Sources: `builtin:service.requestCount.total` and `builtin:service.errorCount.total`
-  - Falls back to total request count if error metric unavailable
+### Displayed Metrics
+- **Host Availability**: `builtin:host.availability` - Percentage of hosts currently available
+- **CPU Usage**: `builtin:host.cpu.usage` - Average CPU usage percentage across all hosts
+- **Memory Usage**: `builtin:host.mem.usage` - Average memory usage percentage across all hosts
+- **Network Connectivity**: `builtin:host.net.nic.connectivity` - Network interface connectivity status
 
-### How Availability Metrics Work
+All metrics are displayed as percentages (0-100%) with status indicators:
+- **Healthy** (≥95%): Green badge
+- **Warning** (≥80%): Yellow badge
+- **Critical** (<80%): Red badge
+- **Unknown** (no data): Gray badge
 
-**Application Success Rate:**
-The dashboard automatically calculates application availability by comparing successful HTTP requests to total requests:
-1. Fetches `builtin:app.web.httpRequests.successful` (successful requests)
-2. Fetches `builtin:app.web.httpRequests.overall` (total requests)
-3. Calculates: (successful / total) × 100 = percentage
-4. If either metric is unavailable, displays total request count as fallback
+### API Response Structure
 
-**Service Success Rate:**
-The dashboard calculates service availability by comparing total requests to errors:
-1. Fetches `builtin:service.requestCount.total` (total requests)
-2. Fetches `builtin:service.errorCount.total` (error count)
-3. Calculates: ((total - errors) / total) × 100 = percentage
-4. Clamps result to 0-100 range
-5. If either metric is unavailable, displays total request count as fallback
+The `/api/availability/dashboard` endpoint returns:
+```json
+{
+  "availability": { "result": [...] },
+  "cpu_usage": { "result": [...] },
+  "memory_usage": { "result": [...] },
+  "network_connectivity": { "result": [...] }
+}
+```
 
-### Customizing Availability Metrics
+Each metric follows the Dynatrace API v2 metrics/query response structure.
 
-To modify the availability calculations, edit `backend/dynatrace_client.py`:
+### Customizing Dashboard Metrics
 
-**For Applications**, modify the `get_application_availability()` method:
-- Change which metrics are fetched in the `get_metric_data()` calls
-- Modify the calculation logic in `_calculate_success_rate()`
+To change which metrics are displayed, edit `backend/dynatrace_client.py`:
 
-**For Services**, modify the `get_service_availability()` method:
-- Change which metrics are fetched in the `get_metric_data()` calls
-- Modify the calculation logic in `_calculate_availability_from_errors()`
+**To change a specific metric**, modify the corresponding method:
+- `get_host_availability()` - Metric key: `builtin:host.availability`
+- `get_host_cpu_usage()` - Metric key: `builtin:host.cpu.usage`
+- `get_host_memory_usage()` - Metric key: `builtin:host.mem.usage`
+- `get_host_network_connectivity()` - Metric key: `builtin:host.net.nic.connectivity`
 
-**To add different metrics entirely**, use these helper methods as patterns:
-- `_extract_latest_value()` - Extracts the most recent value from any metric response
-- `_calculate_success_rate()` - Template for calculating percentages from two metrics
-- `_calculate_availability_from_errors()` - Template for calculating from count difference
+Simply change the metric key string to any available Dynatrace metric.
+
+**To add or remove dashboard cards**, update:
+1. `backend/dynatrace_client.py` - Add/remove getter method
+2. `backend/main.py` - Update `/api/availability/dashboard` endpoint to call new method
+3. `frontend/src/pages/MainDashboard.tsx` - Add/remove metric card in the JSX
+
+### Example: Replace Network Connectivity with Disk Space
+
+1. Rename the method in `dynatrace_client.py`:
+```python
+def get_host_disk_usage(self, start_timestamp=None, end_timestamp=None):
+    if start_timestamp is None or end_timestamp is None:
+        import time
+        now = int(time.time() * 1000)
+        start_timestamp = now - (60 * 60 * 1000)
+        end_timestamp = now
+
+    return self.get_metric_data(
+        "builtin:host.disk.usedSpace",  # Changed from builtin:host.net.nic.connectivity
+        start_timestamp,
+        end_timestamp,
+        "1m"
+    )
+```
+
+2. Update `main.py` endpoint:
+```python
+disk_data = dynatrace_client.get_host_disk_usage()  # Changed from network
+return {
+    "availability": availability_data,
+    "cpu_usage": cpu_data,
+    "memory_usage": memory_data,
+    "disk_usage": disk_data,  # Changed from network_connectivity
+}
+```
+
+3. Update the frontend component accordingly
 
 ## Troubleshooting
 
