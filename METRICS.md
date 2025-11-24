@@ -6,21 +6,21 @@
 - `builtin:host.cpu.usage` - CPU usage percentage
 - `builtin:host.memory.usage` - Memory usage percentage
 - `builtin:host.disk.usedSpace` - Disk space used
-- `builtin:host.availability` - Host availability
+- `builtin:host.availability` - Host availability (recommended for dashboard)
 - `builtin:host.network.io.read` - Network read operations
 - `builtin:host.network.io.write` - Network write operations
 - `builtin:host.processes.count` - Process count
 
 ### Application Metrics
 - `builtin:app.web.httpRequests.overall` - HTTP requests count
-- `builtin:app.web.httpRequests.successful` - Successful requests
+- `builtin:app.web.httpRequests.successful` - Successful requests (good indicator of availability)
 - `builtin:app.web.httpRequests.clientErrors` - Client errors (4xx)
-- `builtin:app.web.httpRequests.serverErrors` - Server errors (5xx)
+- `builtin:app.web.httpRequests.serverErrors` - Server errors (5xx) (inverse indicator of availability)
 - `builtin:app.web.requestResponseTime.overall` - Response time
 
 ### Service Metrics
 - `builtin:service.requestCount.total` - Total service requests
-- `builtin:service.errorCount.total` - Total service errors
+- `builtin:service.errorCount.total` - Total service errors (inverse indicator of availability)
 - `builtin:service.requestCount.server` - Server-side requests
 - `builtin:service.requestCount.client` - Client-side requests
 - `builtin:service.responseTime` - Service response time
@@ -129,6 +129,34 @@ curl -H "Api-Token: $API_TOKEN" \
 curl -H "Api-Token: $API_TOKEN" \
   "$TENANT_URL/api/v2/metrics?pageSize=100&pageKey=<nextPageKey_value>"
 ```
+
+## Availability Dashboard Configuration
+
+The main dashboard displays three key availability metrics:
+
+### Current Metrics
+- **Host Availability**: `builtin:host.availability` - Percentage of hosts available
+- **Application Availability**: `builtin:app.web.httpRequests.overall` - Total HTTP requests (requires custom calculation for true availability)
+- **Service Availability**: `builtin:service.requestCount.total` - Total service requests (requires custom calculation for true availability)
+
+### Recommended Alternatives
+If you want to display true availability percentages instead of request counts, consider these alternatives:
+
+**For Applications:**
+- Use `builtin:app.web.httpRequests.successful` divided by `builtin:app.web.httpRequests.overall` to calculate success rate
+- Monitor `builtin:app.web.httpRequests.serverErrors` as an inverse availability indicator
+- Use service-level monitoring metrics if you have SyntheticMonitor data available
+
+**For Services:**
+- Use `builtin:service.errorCount.total` divided by `builtin:service.requestCount.total` to calculate error rate
+- Calculate availability as: `(total_requests - error_requests) / total_requests * 100`
+- Monitor `builtin:service.responseTime` to detect service degradation
+
+### Custom Dashboard Metrics
+You can customize the availability metrics by modifying `backend/dynatrace_client.py`:
+- Edit `get_application_availability()` to use a different metric
+- Edit `get_service_availability()` to use a different metric
+- Or create a custom calculation combining multiple metrics
 
 ## Troubleshooting
 
