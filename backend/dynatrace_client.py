@@ -274,7 +274,7 @@ class DynatraceClient:
             return {}
 
     def get_application_availability(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
-        """Get application availability metrics"""
+        """Get application availability metrics (success rate)"""
         try:
             # If no time range provided, use last hour
             if start_timestamp is None or end_timestamp is None:
@@ -283,18 +283,43 @@ class DynatraceClient:
                 start_timestamp = now - (60 * 60 * 1000)  # Last hour
                 end_timestamp = now
 
-            return self.get_metric_data(
-                "builtin:app.web.httpRequests.overall",
-                start_timestamp,
-                end_timestamp,
-                "1m"
-            )
+            # Try to get success rate metric first (best indicator of availability)
+            # If not available, fall back to server errors (inverse indicator)
+            print("Fetching application availability...")
+            try:
+                # Fetch successful requests
+                successful_data = self.get_metric_data(
+                    "builtin:app.web.httpRequests.successful",
+                    start_timestamp,
+                    end_timestamp,
+                    "1m"
+                )
+
+                # Fetch overall requests
+                overall_data = self.get_metric_data(
+                    "builtin:app.web.httpRequests.overall",
+                    start_timestamp,
+                    end_timestamp,
+                    "1m"
+                )
+
+                # Calculate success rate as percentage
+                return self._calculate_success_rate(successful_data, overall_data)
+            except:
+                # Fall back to just overall requests if success metric not available
+                print("Couldn't calculate success rate, using overall requests as fallback")
+                return self.get_metric_data(
+                    "builtin:app.web.httpRequests.overall",
+                    start_timestamp,
+                    end_timestamp,
+                    "1m"
+                )
         except Exception as e:
             print(f"Error fetching application availability: {e}")
             return {}
 
     def get_service_availability(self, start_timestamp: Optional[int] = None, end_timestamp: Optional[int] = None) -> Dict[str, Any]:
-        """Get service availability metrics"""
+        """Get service availability metrics (success rate)"""
         try:
             # If no time range provided, use last hour
             if start_timestamp is None or end_timestamp is None:
@@ -303,12 +328,115 @@ class DynatraceClient:
                 start_timestamp = now - (60 * 60 * 1000)  # Last hour
                 end_timestamp = now
 
-            return self.get_metric_data(
-                "builtin:service.requestCount.total",
-                start_timestamp,
-                end_timestamp,
-                "1m"
-            )
+            # Try to calculate availability from error rate
+            print("Fetching service availability...")
+            try:
+                # Fetch total requests
+                total_data = self.get_metric_data(
+                    "builtin:service.requestCount.total",
+                    start_timestamp,
+                    end_timestamp,
+                    "1m"
+                )
+
+                # Fetch error count
+                error_data = self.get_metric_data(
+                    "builtin:service.errorCount.total",
+                    start_timestamp,
+                    end_timestamp,
+                    "1m"
+                )
+
+                # Calculate success rate from error count
+                return self._calculate_availability_from_errors(total_data, error_data)
+            except:
+                # Fall back to just request count if error metric not available
+                print("Couldn't calculate from errors, using request count as fallback")
+                return self.get_metric_data(
+                    "builtin:service.requestCount.total",
+                    start_timestamp,
+                    end_timestamp,
+                    "1m"
+                )
         except Exception as e:
             print(f"Error fetching service availability: {e}")
             return {}
+
+    def _calculate_success_rate(self, successful_data: Dict[str, Any], overall_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate success rate from successful and overall requests"""
+        try:
+            # Get the latest values from both metrics
+            successful_value = self._extract_latest_value(successful_data)
+            overall_value = self._extract_latest_value(overall_data)
+
+            if successful_value is not None and overall_value is not None and overall_value > 0:
+                success_rate = (successful_value / overall_value) * 100
+                # Return in the same structure as metric query response
+                return {
+                    "result": [{
+                        "data": [{
+                            "values": [[success_rate]]
+                        }]
+                    }]
+                }
+            return overall_data  # Fall back to overall if can't calculate
+        except Exception as e:
+            print(f"Error calculating success rate: {e}")
+            return overall_data
+
+    def _calculate_availability_from_errors(self, total_data: Dict[str, Any], error_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate availability from total requests and error count"""
+        try:
+            # Get the latest values from both metrics
+            total_value = self._extract_latest_value(total_data)
+            error_value = self._extract_latest_value(error_data)
+
+            if total_value is not None and error_value is not None and total_value > 0:
+                success_rate = ((total_value - error_value) / total_value) * 100
+                # Ensure it's between 0 and 100
+                success_rate = max(0, min(100, success_rate))
+                # Return in the same structure as metric query response
+                return {
+                    "result": [{
+                        "data": [{
+                            "values": [[success_rate]]
+                        }]
+                    }]
+                }
+            return total_data  # Fall back to total if can't calculate
+        except Exception as e:
+            print(f"Error calculating availability from errors: {e}")
+            return total_data
+
+    def _extract_latest_value(self, data: Dict[str, Any]) -> Optional[float]:
+        """Extract the latest value from metric data"""
+        try:
+            if not isinstance(data, dict) or "result" not in data:
+                return None
+
+            results = data.get("result", [])
+            if not results:
+                return None
+
+            result_item = results[0]
+
+            # Try to extract from nested data structure
+            if "data" in result_item and isinstance(result_item["data"], list) and result_item["data"]:
+                data_item = result_item["data"][0]
+                if "values" in data_item and isinstance(data_item["values"], list) and data_item["values"]:
+                    values = data_item["values"]
+                    last_value = values[-1]
+                    if isinstance(last_value, list) and len(last_value) > 0:
+                        return float(last_value[0]) if last_value[0] is not None else None
+
+            # Try direct structure
+            if "values" in result_item and isinstance(result_item["values"], list) and result_item["values"]:
+                values = result_item["values"]
+                last_value = values[-1]
+                if isinstance(last_value, list) and len(last_value) > 0:
+                    return float(last_value[0]) if last_value[0] is not None else None
+
+            return None
+        except Exception as e:
+            print(f"Error extracting latest value: {e}")
+            return None
