@@ -77,6 +77,36 @@ async def get_metrics_list():
         raise HTTPException(status_code=500, detail=f"Error loading metrics: {str(e)}")
 
 
+@app.get("/api/metrics/validate/{metric_key}")
+async def validate_metric(metric_key: str):
+    """Validate if a metric exists and is queryable"""
+    try:
+        # Load cached metrics
+        metrics = dynatrace_client.load_metrics_from_file()
+
+        # Check if metric exists in cache
+        metric_exists = any(
+            m == metric_key or (isinstance(m, dict) and m.get("metricId") == metric_key)
+            for m in metrics
+        )
+
+        if not metric_exists:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Metric '{metric_key}' not found. Please refresh metrics first."
+            )
+
+        return {
+            "metric_key": metric_key,
+            "valid": True,
+            "message": "Metric is valid and queryable"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error validating metric: {str(e)}")
+
+
 @app.post("/api/metrics/data")
 async def get_metric_data(request: MetricRequest):
     """Get metric data for a specific metric"""

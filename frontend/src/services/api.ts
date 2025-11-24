@@ -60,6 +60,12 @@ class DynatraceAPI {
     return response.data;
   }
 
+  // Validate if a metric is queryable
+  async validateMetric(metricKey: string): Promise<{ metric_key: string; valid: boolean; message: string }> {
+    const response = await this.api.get(`/metrics/validate/${encodeURIComponent(metricKey)}`);
+    return response.data;
+  }
+
   // Get metric data
   async getMetricData(
     metricKey: string,
