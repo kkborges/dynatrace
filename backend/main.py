@@ -157,12 +157,32 @@ async def get_availability_dashboard():
         apps_data = dynatrace_client.get_application_availability()
         services_data = dynatrace_client.get_service_availability()
 
+        print(f"DEBUG: Hosts data structure: {type(hosts_data)}")
+        if isinstance(hosts_data, dict) and 'result' in hosts_data:
+            print(f"DEBUG: Hosts result length: {len(hosts_data.get('result', []))}")
+            if hosts_data.get('result'):
+                print(f"DEBUG: Hosts result[0] keys: {list(hosts_data['result'][0].keys())}")
+                print(f"DEBUG: Hosts result[0] has 'data': {'data' in hosts_data['result'][0]}")
+                if 'data' in hosts_data['result'][0]:
+                    print(f"DEBUG: Hosts result[0].data type: {type(hosts_data['result'][0]['data'])}")
+
+        print(f"DEBUG: Apps data structure: {type(apps_data)}")
+        if isinstance(apps_data, dict) and 'result' in apps_data:
+            print(f"DEBUG: Apps result length: {len(apps_data.get('result', []))}")
+
+        print(f"DEBUG: Services data structure: {type(services_data)}")
+        if isinstance(services_data, dict) and 'result' in services_data:
+            print(f"DEBUG: Services result length: {len(services_data.get('result', []))}")
+
         return {
             "hosts": hosts_data,
             "applications": apps_data,
             "services": services_data,
         }
     except Exception as e:
+        print(f"ERROR in get_availability_dashboard: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error fetching availability data: {str(e)}")
 
 

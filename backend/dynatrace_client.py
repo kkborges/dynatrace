@@ -37,16 +37,16 @@ class DynatraceClient:
             import time as time_module
 
             all_metrics = []
+            seen_metric_ids = set()  # Track metric IDs to detect duplicates
             next_page_key: Optional[str] = None
             url = f"{self.base_url}/api/v2/metrics"
             page_count = 0
-            max_pages = 500  # Dynatrace has many metrics, increase limit
-            previous_count = 0
+            max_pages = 20  # Limit pages to prevent excessive API calls
             start_time = time_module.time()
-            max_duration = 300  # 5 minute timeout
-            page_size = 500  # Request 500 metrics per page instead of 100
+            max_duration = 120  # 2 minute timeout
+            page_size = 500  # Request 500 metrics per page
 
-            print(f"Starting metrics fetch with max timeout of {max_duration} seconds...")
+            print(f"Starting metrics fetch with max timeout of {max_duration}s, max pages={max_pages}...")
 
             while page_count < max_pages:
                 # Check timeout
@@ -59,6 +59,7 @@ class DynatraceClient:
                 if next_page_key:
                     params["pageKey"] = next_page_key
 
+                print(f"Fetching page {page_count + 1}...")
                 response = requests.get(url, headers=self.headers, params=params, timeout=30)
                 response.raise_for_status()
 
@@ -67,37 +68,43 @@ class DynatraceClient:
 
                 # If no metrics returned, we've reached the end
                 if not metrics:
-                    print(f"No more metrics found. Stopping pagination.")
+                    print(f"No metrics in this page. Stopping pagination.")
                     break
 
-                # Filter to only include builtin metrics (official Dynatrace metrics)
-                builtin_metrics = [m for m in metrics if isinstance(m, dict) and m.get("metricId", "").startswith("builtin:")]
-                if not builtin_metrics:
-                    builtin_metrics = metrics  # If no dict format, keep all
+                # Filter to only include builtin metrics - check multiple possible key names
+                page_metrics = []
+                for m in metrics:
+                    if not isinstance(m, dict):
+                        continue
 
-                all_metrics.extend(builtin_metrics)
+                    # Try different possible field names for metric identifier
+                    metric_id = m.get("metricId") or m.get("key") or m.get("id") or m.get("name", "")
+
+                    # Only include builtin metrics
+                    if isinstance(metric_id, str) and metric_id.startswith("builtin:"):
+                        # Avoid duplicates within this page
+                        if metric_id not in seen_metric_ids:
+                            page_metrics.append(m)
+                            seen_metric_ids.add(metric_id)
+
+                # If we got no builtin metrics this page, stop (means we've moved beyond builtin metrics)
+                if not page_metrics:
+                    print(f"No builtin metrics found in page {page_count + 1}. Stopping pagination.")
+                    break
+
+                all_metrics.extend(page_metrics)
                 page_count += 1
 
                 elapsed = time_module.time() - start_time
-                print(f"Page {page_count}: Fetched {len(builtin_metrics)} metrics in {elapsed:.1f}s, total so far: {len(all_metrics)}")
-
-                # Check if we got the same count (duplicate page)
-                if len(all_metrics) == previous_count:
-                    print(f"Warning: Duplicate metrics detected. Stopping pagination.")
-                    break
-
-                previous_count = len(all_metrics)
+                print(f"Page {page_count}: Found {len(page_metrics)} new builtin metrics, total: {len(all_metrics)} ({elapsed:.1f}s)")
 
                 # Check if there are more pages
                 next_page_key = data.get("nextPageKey")
                 if not next_page_key:
-                    print(f"Pagination complete. No more pages after {page_count} pages.")
+                    print(f"Pagination complete. No nextPageKey after {page_count} pages.")
                     break
 
-            if page_count >= max_pages:
-                print(f"Warning: Reached maximum page limit ({max_pages}). There may be more metrics available.")
-
-            print(f"Metrics fetch complete: {len(all_metrics)} metrics in {page_count} pages, {time_module.time() - start_time:.1f}s total")
+            print(f"Metrics fetch complete: {len(all_metrics)} unique builtin metrics in {page_count} pages, {time_module.time() - start_time:.1f}s total")
 
             # Create the final structure with all metrics
             metrics_data = {
@@ -183,17 +190,28 @@ class DynatraceClient:
                 "to": to_iso,
             }
 
+            print(f"Querying metric {metric_key} from {from_iso} to {to_iso}")
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
             response.raise_for_status()
 
             data = response.json()
+
+            # Debug logging
+            if "result" in data:
+                print(f"  Result count: {len(data['result'])}")
+                if data["result"]:
+                    print(f"  Result[0] keys: {list(data['result'][0].keys())}")
+                    if 'data' in data['result'][0]:
+                        print(f"  Result[0].data type: {type(data['result'][0]['data'])}, length: {len(data['result'][0]['data']) if isinstance(data['result'][0]['data'], list) else 'N/A'}")
 
             # Resolve entity IDs to display names
             self._resolve_entity_ids(data)
 
             return data
         except Exception as e:
-            print(f"Error fetching metric data: {e}")
+            print(f"Error fetching metric data for {metric_key}: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
 
     def _timestamp_to_iso8601(self, timestamp_ms: int) -> str:
