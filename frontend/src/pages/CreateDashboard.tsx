@@ -58,7 +58,11 @@ export const CreateDashboard: React.FC = () => {
 
       // Load chart types
       const chartTypesResponse = await DynatraceAPI.getChartTypes();
-      setChartTypes(chartTypesResponse.chart_types);
+      const chartTypesFormatted = (chartTypesResponse.chart_types || []).map(ct => ({
+        ...ct,
+        category: (ct.category === 'modern' || ct.category === 'common') ? ct.category : 'common'
+      })) as ChartType[];
+      setChartTypes(chartTypesFormatted);
     } catch (err) {
       setError('Failed to load metrics and chart types. Please try again.');
       console.error(err);
@@ -140,12 +144,12 @@ export const CreateDashboard: React.FC = () => {
           );
           dataMap[metric] = {
             metric_key: metric,
-            data: data,
+            data: (data as unknown) as Record<string, unknown>,
           };
           testResults.push({
             metric_key: metric,
             status: 'success',
-            data_points: ((data as Record<string, unknown>).result as unknown[])?.length || 0,
+            data_points: (((data as unknown) as Record<string, unknown>).result as unknown[])?.length || 0,
           });
         } catch (err) {
           testResults.push({

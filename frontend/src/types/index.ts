@@ -31,9 +31,10 @@ export interface MetricData {
 }
 
 export interface AvailabilityMetrics {
-  hosts: Record<string, unknown>;
-  applications: Record<string, unknown>;
-  services: Record<string, unknown>;
+  availability: Record<string, unknown>;
+  cpu_usage: Record<string, unknown>;
+  memory_usage: Record<string, unknown>;
+  network_connectivity: Record<string, unknown>;
 }
 
 export interface TestResult {

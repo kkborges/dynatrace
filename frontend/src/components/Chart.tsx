@@ -72,15 +72,15 @@ export const Chart: React.FC<ChartProps> = ({
   );
 };
 
-function getEmptyChartOption(chartType: string) {
+function getEmptyChartOption(chartType: string): echarts.EChartsOption {
   return {
     title: {
       text: 'No Data Available',
       left: 'center',
       top: 'center',
     },
-    xAxis: { type: 'category' },
-    yAxis: {},
+    xAxis: { type: 'category' } as any,
+    yAxis: {} as any,
     series: [],
   };
 }
@@ -142,7 +142,7 @@ function generateChartOption(
         series: [
           {
             data: yAxisData,
-            type: 'area',
+            type: 'line',
             areaStyle: { color: '#007bff', opacity: 0.5 },
             lineStyle: { color: '#0056b3' },
           },

@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import DynatraceAPI from '../services/api';
+import { AvailabilityMetrics } from '../types';
 import './MainDashboard.css';
 
-interface HostMetrics {
-  availability: Record<string, unknown>;
-  cpu_usage: Record<string, unknown>;
-  memory_usage: Record<string, unknown>;
-  network_connectivity: Record<string, unknown>;
-}
-
 export const MainDashboard: React.FC = () => {
-  const [metrics, setMetrics] = useState<HostMetrics | null>(null);
+  const [metrics, setMetrics] = useState<AvailabilityMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTime, setRefreshTime] = useState<string>(new Date().toLocaleTimeString());
