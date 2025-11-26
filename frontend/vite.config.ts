@@ -12,7 +12,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path,
         secure: false,
-        ws: true,
       }
     }
   },
