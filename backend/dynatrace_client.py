@@ -202,7 +202,20 @@ class DynatraceClient:
                 if data["result"]:
                     print(f"  Result[0] keys: {list(data['result'][0].keys())}")
                     if 'data' in data['result'][0]:
-                        print(f"  Result[0].data type: {type(data['result'][0]['data'])}, length: {len(data['result'][0]['data']) if isinstance(data['result'][0]['data'], list) else 'N/A'}")
+                        data_field = data['result'][0]['data']
+                        print(f"  Result[0].data type: {type(data_field)}, length: {len(data_field) if isinstance(data_field, list) else 'N/A'}")
+                        if isinstance(data_field, list) and len(data_field) > 0:
+                            print(f"  Result[0].data[0] keys: {list(data_field[0].keys()) if isinstance(data_field[0], dict) else 'not a dict'}")
+                            # Log sample of the first data element
+                            if isinstance(data_field[0], dict):
+                                for key in data_field[0].keys():
+                                    value = data_field[0][key]
+                                    if isinstance(value, list):
+                                        print(f"    {key}: list with {len(value)} items")
+                                        if len(value) > 0:
+                                            print(f"      First item: {value[0]}")
+                                    else:
+                                        print(f"    {key}: {value}")
 
             # Resolve entity IDs to display names
             self._resolve_entity_ids(data)

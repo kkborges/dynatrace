@@ -47,6 +47,95 @@ async def health_check():
     return {"status": "ok"}
 
 
+@app.get("/api/test/availability/dashboard")
+async def get_test_availability_dashboard():
+    """Test endpoint returning mock dashboard data for debugging"""
+    print("TEST ENDPOINT CALLED - Returning mock dashboard data")
+    # Mock data in the exact format that Dynatrace API returns
+    mock_availability = {
+        "totalCount": 1,
+        "resolution": "1m",
+        "result": [
+            {
+                "metricId": "builtin:host.availability",
+                "dataPointCountRatio": 1.0,
+                "dimensionCountRatio": 1.0,
+                "data": [
+                    {
+                        "dimensions": [],
+                        "timestamps": [1732634400000, 1732634460000, 1732634520000],
+                        "values": [[99.5], [99.3], [99.8]]
+                    }
+                ]
+            }
+        ]
+    }
+
+    mock_cpu = {
+        "totalCount": 1,
+        "resolution": "1m",
+        "result": [
+            {
+                "metricId": "builtin:host.cpu.usage",
+                "dataPointCountRatio": 1.0,
+                "dimensionCountRatio": 1.0,
+                "data": [
+                    {
+                        "dimensions": [],
+                        "timestamps": [1732634400000, 1732634460000, 1732634520000],
+                        "values": [[45.2], [47.1], [43.8]]
+                    }
+                ]
+            }
+        ]
+    }
+
+    mock_memory = {
+        "totalCount": 1,
+        "resolution": "1m",
+        "result": [
+            {
+                "metricId": "builtin:host.mem.usage",
+                "dataPointCountRatio": 1.0,
+                "dimensionCountRatio": 1.0,
+                "data": [
+                    {
+                        "dimensions": [],
+                        "timestamps": [1732634400000, 1732634460000, 1732634520000],
+                        "values": [[72.5], [73.1], [71.8]]
+                    }
+                ]
+            }
+        ]
+    }
+
+    mock_network = {
+        "totalCount": 1,
+        "resolution": "1m",
+        "result": [
+            {
+                "metricId": "builtin:host.net.nic.connectivity",
+                "dataPointCountRatio": 1.0,
+                "dimensionCountRatio": 1.0,
+                "data": [
+                    {
+                        "dimensions": [],
+                        "timestamps": [1732634400000, 1732634460000, 1732634520000],
+                        "values": [[98.9], [99.1], [98.5]]
+                    }
+                ]
+            }
+        ]
+    }
+
+    return {
+        "availability": mock_availability,
+        "cpu_usage": mock_cpu,
+        "memory_usage": mock_memory,
+        "network_connectivity": mock_network,
+    }
+
+
 @app.get("/api/dynatrace/validate")
 async def validate_dynatrace_connection():
     """Validate Dynatrace API connection"""

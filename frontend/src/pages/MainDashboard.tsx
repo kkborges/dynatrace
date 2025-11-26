@@ -33,30 +33,38 @@ export const MainDashboard: React.FC = () => {
     if (!data) return 'N/A';
 
     console.log('Processing metric data:', data);
+    console.log('Data keys:', Object.keys(data));
 
     // Handle the Dynatrace API response structure
     const result = (data.result || []) as Array<{
       data?: Array<{
         values?: Array<(number | null)[]>;
         points?: Array<{ value: number; timestamp: number }>;
+        timestamps?: number[];
       }>;
       values?: Array<(number | null)[]>;
       points?: Array<{ value: number; timestamp: number }>;
     }>;
 
     if (result.length === 0) {
+      console.log('No results in data');
       return 'N/A';
     }
 
     const resultItem = result[0];
+    console.log('Result item:', resultItem);
+    console.log('Result item keys:', Object.keys(resultItem));
 
     // Try to get data from nested structure first (result[0].data[0].values)
     if (resultItem.data && Array.isArray(resultItem.data) && resultItem.data.length > 0) {
       const dataItem = resultItem.data[0];
+      console.log('Data item:', dataItem);
+      console.log('Data item keys:', Object.keys(dataItem));
 
       // Try new structure (data[].points)
       if (dataItem.points && Array.isArray(dataItem.points) && dataItem.points.length > 0) {
         const lastPoint = dataItem.points[dataItem.points.length - 1];
+        console.log('Found points, last point:', lastPoint);
         if (lastPoint && lastPoint.value !== null) {
           return (lastPoint.value as number).toFixed(2);
         }
@@ -65,9 +73,16 @@ export const MainDashboard: React.FC = () => {
       // Try old structure (data[].values)
       if (dataItem.values && Array.isArray(dataItem.values) && dataItem.values.length > 0) {
         const lastValue = dataItem.values[dataItem.values.length - 1];
+        console.log('Found values, last value:', lastValue);
         if (lastValue && Array.isArray(lastValue) && lastValue[0] !== null) {
           return (lastValue[0] as number).toFixed(2);
         }
+      }
+
+      // Try timestamps + values array structure
+      if (dataItem.timestamps && Array.isArray(dataItem.timestamps)) {
+        console.log('Found timestamps:', dataItem.timestamps);
+        // If there are timestamps, there should be corresponding values somewhere
       }
     }
 
@@ -86,6 +101,7 @@ export const MainDashboard: React.FC = () => {
       }
     }
 
+    console.log('Could not find value in any expected format');
     return 'N/A';
   };
 

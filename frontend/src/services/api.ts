@@ -84,7 +84,8 @@ class DynatraceAPI {
 
   // Get availability metrics for main dashboard
   async getAvailabilityDashboard(): Promise<AvailabilityMetrics> {
-    const response = await this.api.get('/availability/dashboard');
+    // TODO: Change back to '/availability/dashboard' when .env is configured with Dynatrace credentials
+    const response = await this.api.get('/test/availability/dashboard');
     return response.data;
   }
 
