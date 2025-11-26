@@ -70,12 +70,24 @@ export const MainDashboard: React.FC = () => {
         }
       }
 
-      // Try old structure (data[].values)
+      // Try old structure (data[].values) - values can be either array of arrays OR array of numbers
       if (dataItem.values && Array.isArray(dataItem.values) && dataItem.values.length > 0) {
-        const lastValue = dataItem.values[dataItem.values.length - 1];
-        console.log('Found values, last value:', lastValue);
-        if (lastValue && Array.isArray(lastValue) && lastValue[0] !== null) {
-          return (lastValue[0] as number).toFixed(2);
+        console.log('Found values array, type of first item:', typeof dataItem.values[0]);
+
+        // Find last non-null value (working backwards)
+        for (let i = dataItem.values.length - 1; i >= 0; i--) {
+          const val = dataItem.values[i];
+          console.log(`Checking value at index ${i}:`, val);
+
+          // Handle direct numeric values
+          if (typeof val === 'number' && val !== null) {
+            return (val as number).toFixed(2);
+          }
+
+          // Handle array-wrapped values [[99.5], [99.3], ...]
+          if (Array.isArray(val) && val.length > 0 && val[0] !== null) {
+            return (val[0] as number).toFixed(2);
+          }
         }
       }
 
@@ -95,9 +107,15 @@ export const MainDashboard: React.FC = () => {
     }
 
     if (resultItem.values && Array.isArray(resultItem.values) && resultItem.values.length > 0) {
-      const lastValue = resultItem.values[resultItem.values.length - 1];
-      if (lastValue && Array.isArray(lastValue) && lastValue[0] !== null) {
-        return (lastValue[0] as number).toFixed(2);
+      // Try both numeric and array formats
+      for (let i = resultItem.values.length - 1; i >= 0; i--) {
+        const val = resultItem.values[i];
+        if (typeof val === 'number' && val !== null) {
+          return (val as number).toFixed(2);
+        }
+        if (Array.isArray(val) && val.length > 0 && val[0] !== null) {
+          return (val[0] as number).toFixed(2);
+        }
       }
     }
 
