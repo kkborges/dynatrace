@@ -50,10 +50,15 @@ async def health_check():
 @app.get("/api/dynatrace/validate")
 async def validate_dynatrace_connection():
     """Validate Dynatrace API connection"""
-    is_valid = dynatrace_client.validate_connection()
-    if not is_valid:
-        raise HTTPException(status_code=400, detail="Invalid Dynatrace credentials")
-    return {"status": "connected", "tenant_url": settings.tenant_url}
+    try:
+        is_valid = dynatrace_client.validate_connection()
+        if not is_valid:
+            raise HTTPException(status_code=400, detail="Invalid Dynatrace credentials")
+        return {"status": "connected", "tenant_url": settings.tenant_url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Connection validation error: {str(e)}")
 
 
 @app.post("/api/metrics/refresh")
