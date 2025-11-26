@@ -143,11 +143,44 @@ class DynatraceClient:
                     data = json.load(f)
                     # Extract metric keys for combobox
                     if isinstance(data, dict) and "metrics" in data:
-                        return data["metrics"]
+                        # Transform metrics to expected format
+                        return self._transform_metrics(data["metrics"])
                     return []
             return []
         except Exception as e:
             print(f"Error loading metrics: {e}")
+            return []
+
+    def _transform_metrics(self, raw_metrics: list) -> list:
+        """Transform raw Dynatrace metrics to frontend format"""
+        try:
+            transformed = []
+            for metric in raw_metrics:
+                if not isinstance(metric, dict):
+                    continue
+
+                # Extract fields from Dynatrace API response
+                metric_id = metric.get("metricId") or metric.get("key") or metric.get("id", "")
+                display_name = metric.get("displayName") or metric.get("name") or metric_id
+                unit = metric.get("unit", "")
+                description = metric.get("description", "")
+
+                # Transform to frontend format
+                transformed_metric = {
+                    "key": metric_id,  # Use metricId as key
+                    "name": display_name,  # Use displayName as name
+                }
+
+                if unit:
+                    transformed_metric["unit"] = unit
+                if description:
+                    transformed_metric["description"] = description
+
+                transformed.append(transformed_metric)
+
+            return transformed
+        except Exception as e:
+            print(f"Error transforming metrics: {e}")
             return []
 
     def get_entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
