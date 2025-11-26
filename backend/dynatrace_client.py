@@ -41,9 +41,9 @@ class DynatraceClient:
             next_page_key: Optional[str] = None
             url = f"{self.base_url}/api/v2/metrics"
             page_count = 0
-            max_pages = 20  # Limit pages to prevent excessive API calls
+            max_pages = 1000  # Increased limit to fetch all metrics (1000 pages * 500 metrics = 500k max)
             start_time = time_module.time()
-            max_duration = 120  # 2 minute timeout
+            max_duration = 600  # 10 minute timeout
             page_size = 500  # Request 500 metrics per page
 
             print(f"Starting metrics fetch with max timeout of {max_duration}s, max pages={max_pages}...")
@@ -59,7 +59,7 @@ class DynatraceClient:
                 if next_page_key:
                     params["pageKey"] = next_page_key
 
-                print(f"Fetching page {page_count + 1}...")
+                print(f"Fetching page {page_count + 1}... (elapsed: {elapsed:.1f}s, total metrics: {len(all_metrics)})")
                 response = requests.get(url, headers=self.headers, params=params, timeout=30)
                 response.raise_for_status()
 
@@ -87,16 +87,12 @@ class DynatraceClient:
                             page_metrics.append(m)
                             seen_metric_ids.add(metric_id)
 
-                # If we got no builtin metrics this page, stop (means we've moved beyond builtin metrics)
-                if not page_metrics:
-                    print(f"No builtin metrics found in page {page_count + 1}. Stopping pagination.")
-                    break
-
+                # Add metrics from this page
                 all_metrics.extend(page_metrics)
                 page_count += 1
 
                 elapsed = time_module.time() - start_time
-                print(f"Page {page_count}: Found {len(page_metrics)} new builtin metrics, total: {len(all_metrics)} ({elapsed:.1f}s)")
+                print(f"Page {page_count}: Found {len(page_metrics)} builtin metrics, total: {len(all_metrics)} ({elapsed:.1f}s)")
 
                 # Check if there are more pages
                 next_page_key = data.get("nextPageKey")
@@ -104,7 +100,8 @@ class DynatraceClient:
                     print(f"Pagination complete. No nextPageKey after {page_count} pages.")
                     break
 
-            print(f"Metrics fetch complete: {len(all_metrics)} unique builtin metrics in {page_count} pages, {time_module.time() - start_time:.1f}s total")
+            elapsed = time_module.time() - start_time
+            print(f"Metrics fetch complete: {len(all_metrics)} unique builtin metrics in {page_count} pages, {elapsed:.1f}s total")
 
             # Create the final structure with all metrics
             metrics_data = {
