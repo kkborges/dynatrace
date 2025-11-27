@@ -205,9 +205,9 @@ async def validate_metric(metric_key: str):
         # Load cached metrics
         metrics = dynatrace_client.load_metrics_from_file()
 
-        # Check if metric exists in cache
+        # Check if metric exists in cache (metrics are now transformed with 'key' field)
         metric_exists = any(
-            m == metric_key or (isinstance(m, dict) and m.get("metricId") == metric_key)
+            (isinstance(m, dict) and (m.get("key") == metric_key or m.get("metricId") == metric_key))
             for m in metrics
         )
 
