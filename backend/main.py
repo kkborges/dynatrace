@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 import time
 import threading
 
-from config import settings
-from dynatrace_client import DynatraceClient
-from dashboard_manager import DashboardManager
-from models import (
+from backend.config import settings
+from backend.dynatrace_client import DynatraceClient
+from backend.dashboard_manager import DashboardManager
+from backend.models import (
     MetricRequest,
     DashboardConfig,
     TimeRange,

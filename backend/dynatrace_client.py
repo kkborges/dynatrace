@@ -3,8 +3,8 @@ import json
 import os
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
-from config import settings
-from entity_manager import EntityManager
+from backend.config import settings
+from backend.entity_manager import EntityManager
 
 
 class DynatraceClient:

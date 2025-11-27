@@ -3,7 +3,7 @@ import os
 import uuid
 from typing import Dict, List, Optional
 from datetime import datetime
-from models import SavedDashboard, DashboardMetric
+from backend.models import SavedDashboard, DashboardMetric
 
 
 class DashboardManager:
