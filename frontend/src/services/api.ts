@@ -129,6 +129,128 @@ class DynatraceAPI {
     const response = await this.api.get('/chart-types');
     return response.data;
   }
+
+  // Dashboard Management Methods
+
+  // Create a new dashboard
+  async createDashboard(dashboard: {
+    name: string;
+    description?: string;
+    metrics: Array<{
+      metric_key: string;
+      chart_type: string;
+      start_timestamp: number;
+      end_timestamp: number;
+      resolution: string;
+      dimension?: string;
+      filter_entity?: string;
+      split_by_dimension?: boolean;
+    }>;
+  }): Promise<{ id: string; message: string }> {
+    const response = await this.api.post('/dashboards', dashboard);
+    return response.data;
+  }
+
+  // Get list of all saved dashboards
+  async listDashboards(): Promise<{ dashboards: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    metrics: Array<{
+      metric_key: string;
+      chart_type: string;
+      start_timestamp: number;
+      end_timestamp: number;
+      resolution: string;
+      dimension?: string;
+      filter_entity?: string;
+      split_by_dimension?: boolean;
+    }>;
+    created_at?: string;
+    updated_at?: string;
+  }>; count: number }> {
+    const response = await this.api.get('/dashboards');
+    return response.data;
+  }
+
+  // Get a specific dashboard by ID
+  async getDashboard(dashboardId: string): Promise<{
+    id: string;
+    name: string;
+    description?: string;
+    metrics: Array<{
+      metric_key: string;
+      chart_type: string;
+      start_timestamp: number;
+      end_timestamp: number;
+      resolution: string;
+      dimension?: string;
+      filter_entity?: string;
+      split_by_dimension?: boolean;
+    }>;
+    created_at?: string;
+    updated_at?: string;
+  }> {
+    const response = await this.api.get(`/dashboards/${encodeURIComponent(dashboardId)}`);
+    return response.data;
+  }
+
+  // Update a dashboard
+  async updateDashboard(dashboardId: string, dashboard: {
+    name: string;
+    description?: string;
+    metrics: Array<{
+      metric_key: string;
+      chart_type: string;
+      start_timestamp: number;
+      end_timestamp: number;
+      resolution: string;
+      dimension?: string;
+      filter_entity?: string;
+      split_by_dimension?: boolean;
+    }>;
+  }): Promise<{ id: string; message: string }> {
+    const response = await this.api.put(`/dashboards/${encodeURIComponent(dashboardId)}`, dashboard);
+    return response.data;
+  }
+
+  // Delete a dashboard
+  async deleteDashboard(dashboardId: string): Promise<{ message: string }> {
+    const response = await this.api.delete(`/dashboards/${encodeURIComponent(dashboardId)}`);
+    return response.data;
+  }
+
+  // Export dashboard as JSON
+  async exportDashboard(dashboardId: string): Promise<{ data: string; filename: string }> {
+    const response = await this.api.get(`/dashboards/${encodeURIComponent(dashboardId)}/export`);
+    return response.data;
+  }
+
+  // Import dashboard from JSON
+  async importDashboard(data: string, overrideId: boolean = true): Promise<{ id: string; message: string }> {
+    const response = await this.api.post('/dashboards/import', {
+      data,
+      override_id: overrideId
+    });
+    return response.data;
+  }
+
+  // Get dimensions for a specific metric
+  async getMetricDimensions(
+    metricKey: string,
+    startTimestamp: number,
+    endTimestamp: number,
+    resolution: string = '1m'
+  ): Promise<{ metric_key: string; dimensions: Array<{ name: string; values: string[] }>; entity_names: string[] }> {
+    const response = await this.api.post(`/metrics/${encodeURIComponent(metricKey)}/dimensions`, {}, {
+      params: {
+        start_timestamp: startTimestamp,
+        end_timestamp: endTimestamp,
+        resolution
+      }
+    });
+    return response.data;
+  }
 }
 
 export default new DynatraceAPI();

@@ -43,3 +43,17 @@ export interface TestResult {
   data_points?: number;
   error?: string;
 }
+
+export interface DimensionInfo {
+  name: string;
+  values: string[];
+}
+
+export interface SavedDashboard {
+  id?: string;
+  name: string;
+  description?: string;
+  metrics: DashboardMetric[];
+  created_at?: string;
+  updated_at?: string;
+}

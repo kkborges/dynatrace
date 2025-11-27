@@ -458,3 +458,64 @@ class DynatraceClient:
         except Exception as e:
             print(f"Error extracting latest value: {e}")
             return None
+
+    def extract_dimensions_from_metric_data(self, metric_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract available dimensions and entity names from metric data"""
+        try:
+            dimensions = {}
+            entity_names = set()
+
+            results = metric_data.get("result", [])
+            if not results:
+                return {"dimensions": [], "entity_names": []}
+
+            result_item = results[0]
+
+            # Get data items - handle both nested and direct structures
+            data_items = []
+            if "data" in result_item and isinstance(result_item["data"], list):
+                data_items = result_item["data"]
+            else:
+                data_items = [result_item]
+
+            # Extract dimensions from each data item
+            for data_item in data_items:
+                if not isinstance(data_item, dict):
+                    continue
+
+                # Extract dimension information
+                if "dimensions" in data_item and isinstance(data_item["dimensions"], list):
+                    for dimension in data_item["dimensions"]:
+                        if isinstance(dimension, str):
+                            # Add dimension if not already present
+                            if dimension not in dimensions:
+                                dimensions[dimension] = set()
+
+                # Extract dimension map if available
+                if "dimensionMap" in data_item and isinstance(data_item["dimensionMap"], dict):
+                    for dim_name, dim_values in data_item["dimensionMap"].items():
+                        if dim_name not in dimensions:
+                            dimensions[dim_name] = set()
+                        if isinstance(dim_values, dict):
+                            for key, value in dim_values.items():
+                                if isinstance(value, str):
+                                    dimensions[dim_name].add(value)
+                                    entity_names.add(value)
+
+            # Convert sets to sorted lists
+            result_dimensions = []
+            for dim_name, dim_values in dimensions.items():
+                result_dimensions.append({
+                    "name": dim_name,
+                    "values": sorted(list(dim_values))
+                })
+
+            return {
+                "dimensions": result_dimensions,
+                "entity_names": sorted(list(entity_names))
+            }
+        except Exception as e:
+            print(f"Error extracting dimensions: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"dimensions": [], "entity_names": []}

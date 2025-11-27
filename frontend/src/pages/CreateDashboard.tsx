@@ -5,9 +5,11 @@ import { ChartTypeSelector } from '../components/ChartTypeSelector';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { Chart } from '../components/Chart';
 import { Metric, MetricData, ChartType } from '../types';
+import { useNavigate } from 'react-router-dom';
 import './CreateDashboard.css';
 
 export const CreateDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [chartTypes, setChartTypes] = useState<ChartType[]>([]);
@@ -22,7 +24,10 @@ export const CreateDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dashboardName, setDashboardName] = useState('My Dashboard');
+  const [dashboardDescription, setDashboardDescription] = useState('');
   const [isTesting, setIsTesting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [testCompleted, setTestCompleted] = useState(false);
 
   useEffect(() => {
     loadMetricsAndChartTypes();
@@ -180,12 +185,49 @@ export const CreateDashboard: React.FC = () => {
 
       setMetricsData(dataMap);
       setTestResults(testResults);
-      setStep(4);
+      setTestCompleted(true);
     } catch (err) {
       setError('Failed to test dashboard. Please try again.');
       console.error(err);
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleSaveDashboard = async () => {
+    if (!dashboardName.trim()) {
+      setError('Please enter a dashboard name.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError(null);
+
+      // Build dashboard metrics data
+      const dashboardMetrics = selectedMetrics.map((metric) => ({
+        metric_key: metric,
+        chart_type: selectedCharts[metric] || 'line',
+        start_timestamp: timeRange?.start_timestamp || 0,
+        end_timestamp: timeRange?.end_timestamp || 0,
+        resolution: '1m',
+      }));
+
+      // Save dashboard
+      await DynatraceAPI.createDashboard({
+        name: dashboardName,
+        description: dashboardDescription,
+        metrics: dashboardMetrics,
+      });
+
+      setError(null);
+      // Redirect to dashboard library or main page
+      navigate('/');
+    } catch (err) {
+      setError(`Failed to save dashboard: ${(err as Error).message}`);
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -255,23 +297,59 @@ export const CreateDashboard: React.FC = () => {
 
           {step === 4 && (
             <div className="form-step">
-              <h3>Step 4: Review Dashboard</h3>
+              <h3>Step 4: Review & Save Dashboard</h3>
+
+              {!testCompleted ? (
+                <div className="test-pending">
+                  <p>Click "Test Metrics" to preview your dashboard before saving.</p>
+                </div>
+              ) : (
+                <div className="dashboard-info">
+                  <div className="form-group">
+                    <label htmlFor="dashboard-name">Dashboard Name *</label>
+                    <input
+                      id="dashboard-name"
+                      type="text"
+                      value={dashboardName}
+                      onChange={(e) => setDashboardName(e.target.value)}
+                      placeholder="Enter dashboard name"
+                      disabled={isSaving}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="dashboard-description">Description</label>
+                    <textarea
+                      id="dashboard-description"
+                      value={dashboardDescription}
+                      onChange={(e) => setDashboardDescription(e.target.value)}
+                      placeholder="Enter optional description"
+                      rows={3}
+                      disabled={isSaving}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="dashboard-preview">
                 <div className="test-results">
                   <h4>Test Results</h4>
-                  {testResults.map((result) => (
-                    <div
-                      key={result.metric_key}
-                      className={`test-result ${result.status}`}
-                    >
-                      <span className="metric-name">{result.metric_key}</span>
-                      <span className={`status ${result.status}`}>
-                        {result.status === 'success'
-                          ? `✓ ${result.data_points} data points`
-                          : `✗ ${result.error}`}
-                      </span>
-                    </div>
-                  ))}
+                  {testResults.length > 0 ? (
+                    testResults.map((result) => (
+                      <div
+                        key={result.metric_key}
+                        className={`test-result ${result.status}`}
+                      >
+                        <span className="metric-name">{result.metric_key}</span>
+                        <span className={`status ${result.status}`}>
+                          {result.status === 'success'
+                            ? `✓ ${result.data_points} data points`
+                            : `✗ ${result.error}`}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="no-results">No test results yet. Click "Test Metrics" to preview.</p>
+                  )}
                 </div>
 
                 <div className="charts-preview">
@@ -299,8 +377,13 @@ export const CreateDashboard: React.FC = () => {
           {step > 1 && (
             <button
               className="btn-secondary"
-              onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3 | 4)}
-              disabled={isTesting}
+              onClick={() => {
+                setStep((s) => (s - 1) as 1 | 2 | 3 | 4);
+                if (step === 4) {
+                  setTestCompleted(false);
+                }
+              }}
+              disabled={isTesting || isSaving}
             >
               Previous
             </button>
@@ -320,18 +403,30 @@ export const CreateDashboard: React.FC = () => {
                 }
                 setStep((s) => (s + 1) as 1 | 2 | 3 | 4);
               }}
-              disabled={isTesting}
+              disabled={isTesting || isSaving}
             >
               Next
             </button>
           ) : (
-            <button
-              className="btn-success"
-              onClick={handleTestDashboard}
-              disabled={isTesting || selectedMetrics.length === 0}
-            >
-              {isTesting ? 'Testing...' : 'Test Metrics'}
-            </button>
+            <>
+              {!testCompleted ? (
+                <button
+                  className="btn-success"
+                  onClick={handleTestDashboard}
+                  disabled={isTesting || selectedMetrics.length === 0}
+                >
+                  {isTesting ? 'Testing...' : 'Test Metrics'}
+                </button>
+              ) : (
+                <button
+                  className="btn-success"
+                  onClick={handleSaveDashboard}
+                  disabled={isSaving || !dashboardName.trim()}
+                >
+                  {isSaving ? 'Saving...' : 'Save Dashboard'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -8,12 +8,14 @@ import threading
 
 from config import settings
 from dynatrace_client import DynatraceClient
+from dashboard_manager import DashboardManager
 from models import (
     MetricRequest,
     DashboardConfig,
     TimeRange,
     DashboardMetric,
     AvailabilityMetrics,
+    SavedDashboard,
 )
 
 
@@ -39,6 +41,9 @@ app.add_middleware(
 
 # Initialize Dynatrace client
 dynatrace_client = DynatraceClient()
+
+# Initialize Dashboard manager
+dashboard_manager = DashboardManager()
 
 
 @app.get("/api/health")
@@ -367,6 +372,143 @@ async def get_chart_types():
             {"id": "heatmap", "name": "Heatmap", "category": "modern"},
         ]
     }
+
+
+@app.post("/api/dashboards")
+async def create_dashboard(dashboard: SavedDashboard):
+    """Create a new dashboard"""
+    try:
+        result = dashboard_manager.create_dashboard(
+            dashboard.name,
+            dashboard.description,
+            dashboard.metrics
+        )
+        return {"id": result.id, "message": f"Dashboard '{result.name}' created successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboards")
+async def list_dashboards():
+    """Get list of all saved dashboards"""
+    try:
+        dashboards = dashboard_manager.list_dashboards()
+        return {"dashboards": dashboards, "count": len(dashboards)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboards/{dashboard_id}")
+async def get_dashboard(dashboard_id: str):
+    """Get a specific dashboard by ID"""
+    try:
+        dashboard = dashboard_manager.get_dashboard(dashboard_id)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail=f"Dashboard '{dashboard_id}' not found")
+        return dashboard
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/dashboards/{dashboard_id}")
+async def update_dashboard(dashboard_id: str, dashboard: SavedDashboard):
+    """Update an existing dashboard"""
+    try:
+        result = dashboard_manager.update_dashboard(
+            dashboard_id,
+            dashboard.name,
+            dashboard.description,
+            dashboard.metrics
+        )
+        return {"id": result.id, "message": f"Dashboard '{result.name}' updated successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/dashboards/{dashboard_id}")
+async def delete_dashboard(dashboard_id: str):
+    """Delete a dashboard by ID"""
+    try:
+        success = dashboard_manager.delete_dashboard(dashboard_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Dashboard '{dashboard_id}' not found")
+        return {"message": f"Dashboard '{dashboard_id}' deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboards/{dashboard_id}/export")
+async def export_dashboard(dashboard_id: str):
+    """Export dashboard as JSON file for download"""
+    try:
+        json_content = dashboard_manager.export_dashboard(dashboard_id)
+        if not json_content:
+            raise HTTPException(status_code=404, detail=f"Dashboard '{dashboard_id}' not found")
+        return {
+            "data": json_content,
+            "filename": f"dashboard_{dashboard_id}.json"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/dashboards/import")
+async def import_dashboard(import_data: dict):
+    """Import dashboard from JSON string"""
+    try:
+        dashboard_json = import_data.get("data")
+        override_id = import_data.get("override_id", True)
+
+        if not dashboard_json:
+            raise HTTPException(status_code=400, detail="'data' field is required")
+
+        # Convert dict to JSON string if needed
+        if isinstance(dashboard_json, dict):
+            dashboard_json = json.dumps(dashboard_json)
+
+        result = dashboard_manager.import_dashboard(dashboard_json, override_id)
+        return {"id": result.id, "message": f"Dashboard imported successfully with ID: {result.id}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/metrics/{metric_key}/dimensions")
+async def get_metric_dimensions(
+    metric_key: str,
+    start_timestamp: int = Query(...),
+    end_timestamp: int = Query(...),
+    resolution: str = Query("1m")
+):
+    """Get available dimensions for a specific metric"""
+    try:
+        # First, fetch the metric data
+        metric_data = dynatrace_client.get_metric_data(
+            metric_key=metric_key,
+            start_timestamp=start_timestamp,
+            end_timestamp=end_timestamp,
+            resolution=resolution,
+        )
+
+        # Then extract dimensions from the data
+        dimensions_info = dynatrace_client.extract_dimensions_from_metric_data(metric_data)
+
+        return {
+            "metric_key": metric_key,
+            "dimensions": dimensions_info.get("dimensions", []),
+            "entity_names": dimensions_info.get("entity_names", [])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting metric dimensions: {str(e)}")
 
 
 @app.get("/")
