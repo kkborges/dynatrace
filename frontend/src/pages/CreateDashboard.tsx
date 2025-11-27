@@ -9,10 +9,12 @@ import './CreateDashboard.css';
 
 interface CreateDashboardProps {
   onNavigate?: (page: 'main' | 'create' | 'saved') => void;
+  editDashboardId?: string;
 }
 
-export const CreateDashboard: React.FC<CreateDashboardProps> = ({ onNavigate }) => {
+export const CreateDashboard: React.FC<CreateDashboardProps> = ({ onNavigate, editDashboardId }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [isEditMode, setIsEditMode] = useState(!!editDashboardId);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [chartTypes, setChartTypes] = useState<ChartType[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
@@ -40,6 +42,41 @@ export const CreateDashboard: React.FC<CreateDashboardProps> = ({ onNavigate }) 
       calculateTimeRange();
     }
   }, [selectedTimeRange, customStart, customEnd]);
+
+  useEffect(() => {
+    if (isEditMode && editDashboardId) {
+      loadDashboardForEditing();
+    }
+  }, [editDashboardId]);
+
+  const loadDashboardForEditing = async () => {
+    try {
+      setIsLoading(true);
+      const dashboard = await DynatraceAPI.getDashboard(editDashboardId!);
+
+      setDashboardName(dashboard.name);
+      setDashboardDescription(dashboard.description || '');
+
+      // Set selected metrics
+      const metricKeys = dashboard.metrics.map(m => m.metric_key);
+      setSelectedMetrics(metricKeys);
+
+      // Set selected chart types
+      const chartsMap: { [key: string]: string } = {};
+      dashboard.metrics.forEach(m => {
+        chartsMap[m.metric_key] = m.chart_type || 'line';
+      });
+      setSelectedCharts(chartsMap);
+
+      // Move to step 2 (chart types)
+      setStep(2);
+    } catch (err) {
+      setError(`Failed to load dashboard: ${(err as Error).message}`);
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadMetricsAndChartTypes = async () => {
     try {
@@ -215,12 +252,20 @@ export const CreateDashboard: React.FC<CreateDashboardProps> = ({ onNavigate }) 
         resolution: '1m',
       }));
 
-      // Save dashboard
-      await DynatraceAPI.createDashboard({
-        name: dashboardName,
-        description: dashboardDescription,
-        metrics: dashboardMetrics,
-      });
+      // Save or update dashboard
+      if (isEditMode && editDashboardId) {
+        await DynatraceAPI.updateDashboard(editDashboardId, {
+          name: dashboardName,
+          description: dashboardDescription,
+          metrics: dashboardMetrics,
+        });
+      } else {
+        await DynatraceAPI.createDashboard({
+          name: dashboardName,
+          description: dashboardDescription,
+          metrics: dashboardMetrics,
+        });
+      }
 
       setError(null);
       // Redirect to dashboard library
