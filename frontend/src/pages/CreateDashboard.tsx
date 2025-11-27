@@ -146,10 +146,28 @@ export const CreateDashboard: React.FC = () => {
             metric_key: metric,
             data: (data as unknown) as Record<string, unknown>,
           };
+
+          // Count actual data points
+          let dataPointCount = 0;
+          const result = ((data as unknown) as Record<string, unknown>).result as any[];
+          if (result && result.length > 0) {
+            const firstResult = result[0];
+            // Check nested structure (result[0].data[0].values)
+            if (firstResult.data && Array.isArray(firstResult.data) && firstResult.data.length > 0) {
+              const dataItem = firstResult.data[0];
+              if (dataItem.values && Array.isArray(dataItem.values)) {
+                dataPointCount = dataItem.values.length;
+              }
+            } else if (firstResult.values && Array.isArray(firstResult.values)) {
+              // Try direct structure
+              dataPointCount = firstResult.values.length;
+            }
+          }
+
           testResults.push({
             metric_key: metric,
             status: 'success',
-            data_points: (((data as unknown) as Record<string, unknown>).result as unknown[])?.length || 0,
+            data_points: dataPointCount,
           });
         } catch (err) {
           testResults.push({

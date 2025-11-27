@@ -20,20 +20,44 @@ export const Chart: React.FC<ChartProps> = ({
   const chartOption = useMemo(() => {
     const data = metric.data as Record<string, unknown>;
     const result = (data.result || []) as Array<{
-      dimensions: string[];
-      timestamps: number[];
-      values: Array<(number | null)[]>;
+      dimensions?: string[];
+      timestamps?: number[];
+      values?: Array<(number | null)[]>;
+      data?: Array<{
+        dimensions: string[];
+        timestamps: number[];
+        values: Array<(number | null)[]>;
+      }>;
+      dimensionMap?: Record<string, unknown>;
     }>;
 
     if (result.length === 0) {
       return getEmptyChartOption(chartType);
     }
 
-    const firstSeries = result[0];
-    const xAxisData = (firstSeries.timestamps || []).map((t) =>
+    const firstResult = result[0];
+    let timestamps: number[] = [];
+    let values: Array<(number | null)[]> = [];
+
+    // Try to get data from nested structure first (result[0].data[0])
+    if (firstResult.data && Array.isArray(firstResult.data) && firstResult.data.length > 0) {
+      const dataItem = firstResult.data[0];
+      timestamps = dataItem.timestamps || [];
+      values = dataItem.values || [];
+    } else {
+      // Try direct structure (result[0].timestamps and result[0].values)
+      timestamps = firstResult.timestamps || [];
+      values = firstResult.values || [];
+    }
+
+    if (timestamps.length === 0 || values.length === 0) {
+      return getEmptyChartOption(chartType);
+    }
+
+    const xAxisData = timestamps.map((t) =>
       new Date(t).toLocaleTimeString()
     );
-    const yAxisData = (firstSeries.values || []).map((v) => v[0]);
+    const yAxisData = values.map((v) => Array.isArray(v) ? v[0] : v);
 
     return generateChartOption(chartType, xAxisData, yAxisData, metric.metric_key);
   }, [metric, chartType]);
