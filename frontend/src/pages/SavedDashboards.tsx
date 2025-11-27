@@ -4,7 +4,7 @@ import { SavedDashboard } from '../types';
 import './SavedDashboards.css';
 
 interface SavedDashboardsProps {
-  onNavigate?: (page: 'main' | 'create' | 'saved') => void;
+  onNavigate?: (page: 'main' | 'create' | 'saved', dashboardId?: string) => void;
 }
 
 export const SavedDashboards: React.FC<SavedDashboardsProps> = ({ onNavigate }) => {
@@ -34,8 +34,7 @@ export const SavedDashboards: React.FC<SavedDashboardsProps> = ({ onNavigate }) 
 
   const handleEditDashboard = (dashboardId?: string) => {
     if (dashboardId && onNavigate) {
-      // TODO: Navigate to edit dashboard page with pre-filled data
-      onNavigate('create');
+      onNavigate('create', dashboardId);
     }
   };
 

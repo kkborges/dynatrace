@@ -9,9 +9,15 @@ type Page = 'main' | 'create' | 'saved';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('main');
+  const [editDashboardId, setEditDashboardId] = useState<string | undefined>();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const handleNavigate = (page: Page, dashboardId?: string) => {
+    setCurrentPage(page);
+    setEditDashboardId(dashboardId);
+  };
 
   useEffect(() => {
     validateConnection();
@@ -84,10 +90,10 @@ function App() {
       <main className="app-main">
         {currentPage === 'main' && <MainDashboard />}
         {currentPage === 'saved' && (
-          <SavedDashboards onNavigate={(page) => setCurrentPage(page)} />
+          <SavedDashboards onNavigate={handleNavigate} />
         )}
         {currentPage === 'create' && (
-          <CreateDashboard onNavigate={(page) => setCurrentPage(page)} />
+          <CreateDashboard onNavigate={handleNavigate} editDashboardId={editDashboardId} />
         )}
       </main>
     </div>

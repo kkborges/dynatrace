@@ -115,6 +115,12 @@ function generateChartOption(
   yAxisData: (number | null)[],
   metricName: string
 ): echarts.EChartsOption {
+  // Calculate max value for percentage formatting
+  const maxValue = Math.max(...yAxisData.filter(v => v !== null) as number[]);
+  const isPercentage = metricName.toLowerCase().includes('availability') ||
+                        metricName.toLowerCase().includes('cpu') ||
+                        metricName.toLowerCase().includes('memory');
+
   const baseOption = {
     title: {
       text: metricName,
@@ -122,6 +128,33 @@ function generateChartOption(
     },
     tooltip: {
       trigger: 'axis' as const,
+      formatter: (params: any) => {
+        if (Array.isArray(params) && params.length > 0) {
+          let html = `<div style="padding: 8px; background: rgba(0,0,0,0.8); border-radius: 4px; color: #fff;">`;
+          html += `<p style="margin: 0 0 8px 0; font-weight: bold;">${params[0].axisValue}</p>`;
+
+          params.forEach((param: any) => {
+            let value = param.value;
+            let formattedValue = '';
+
+            if (value === null || value === undefined) {
+              formattedValue = 'N/A';
+            } else if (isPercentage && maxValue <= 100) {
+              formattedValue = `${parseFloat(value).toFixed(2)}%`;
+            } else {
+              formattedValue = `${parseFloat(value).toFixed(2)}`;
+            }
+
+            html += `<p style="margin: 4px 0; color: ${param.color};">
+              <strong>${param.seriesName || 'Value'}:</strong> ${formattedValue}
+            </p>`;
+          });
+
+          html += `</div>`;
+          return html;
+        }
+        return '';
+      },
     },
     legend: {
       top: 40,
