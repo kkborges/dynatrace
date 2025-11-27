@@ -5,11 +5,13 @@ import { ChartTypeSelector } from '../components/ChartTypeSelector';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { Chart } from '../components/Chart';
 import { Metric, MetricData, ChartType } from '../types';
-import { useNavigate } from 'react-router-dom';
 import './CreateDashboard.css';
 
-export const CreateDashboard: React.FC = () => {
-  const navigate = useNavigate();
+interface CreateDashboardProps {
+  onNavigate?: (page: 'main' | 'create' | 'saved') => void;
+}
+
+export const CreateDashboard: React.FC<CreateDashboardProps> = ({ onNavigate }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [chartTypes, setChartTypes] = useState<ChartType[]>([]);
@@ -221,8 +223,8 @@ export const CreateDashboard: React.FC = () => {
       });
 
       setError(null);
-      // Redirect to dashboard library or main page
-      navigate('/');
+      // Redirect to dashboard library
+      onNavigate?.('saved');
     } catch (err) {
       setError(`Failed to save dashboard: ${(err as Error).message}`);
       console.error(err);

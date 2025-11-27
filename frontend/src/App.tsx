@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import DynatraceAPI from './services/api';
 import { MainDashboard } from './pages/MainDashboard';
 import { CreateDashboard } from './pages/CreateDashboard';
+import { SavedDashboards } from './pages/SavedDashboards';
 import './App.css';
 
-type Page = 'main' | 'create';
+type Page = 'main' | 'create' | 'saved';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('main');
@@ -52,6 +53,12 @@ function App() {
               Main Dashboard
             </button>
             <button
+              className={`nav-button ${currentPage === 'saved' ? 'active' : ''}`}
+              onClick={() => setCurrentPage('saved')}
+            >
+              Saved Dashboards
+            </button>
+            <button
               className={`nav-button ${currentPage === 'create' ? 'active' : ''}`}
               onClick={() => setCurrentPage('create')}
             >
@@ -76,7 +83,12 @@ function App() {
 
       <main className="app-main">
         {currentPage === 'main' && <MainDashboard />}
-        {currentPage === 'create' && <CreateDashboard />}
+        {currentPage === 'saved' && (
+          <SavedDashboards onNavigate={(page) => setCurrentPage(page)} />
+        )}
+        {currentPage === 'create' && (
+          <CreateDashboard onNavigate={(page) => setCurrentPage(page)} />
+        )}
       </main>
     </div>
   );
