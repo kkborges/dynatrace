@@ -3,9 +3,10 @@ import DynatraceAPI from './services/api';
 import { MainDashboard } from './pages/MainDashboard';
 import { CreateDashboard } from './pages/CreateDashboard';
 import { SavedDashboards } from './pages/SavedDashboards';
+import { SLOManagement } from './pages/SLOManagement';
 import './App.css';
 
-type Page = 'main' | 'create' | 'saved';
+type Page = 'main' | 'create' | 'saved' | 'slo';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('main');
@@ -70,6 +71,12 @@ function App() {
             >
               Create Dashboard
             </button>
+            <button
+              className={`nav-button ${currentPage === 'slo' ? 'active' : ''}`}
+              onClick={() => setCurrentPage('slo')}
+            >
+              SLO / KPI
+            </button>
           </nav>
           <div className="connection-status">
             <span className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></span>
@@ -95,6 +102,7 @@ function App() {
         {currentPage === 'create' && (
           <CreateDashboard onNavigate={handleNavigate} editDashboardId={editDashboardId} />
         )}
+        {currentPage === 'slo' && <SLOManagement />}
       </main>
     </div>
   );
