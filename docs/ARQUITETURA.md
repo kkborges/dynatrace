@@ -40,6 +40,7 @@ exemplos/uploads    segments, requisitos)        layouts, settings)   templates 
 | `proposals.py` | ciclo de vida da proposta (pendente / aprovado / rejeitado / publicado) |
 | `deploy.py` | segments -> dashboard -> compartilhamento -> template |
 | `library.py` | biblioteca `dashboards/library` e `dashboards/clients` + indice |
+| `selftest.py` | bateria de verificacao das APIs do tenant (leitura e, opcionalmente, escrita) |
 | `service.py` | orquestra o fluxo para CLI e web |
 
 ## Decisoes de projeto
@@ -66,7 +67,14 @@ em qualquer versao); `both` aplica as duas.
 nao entitlement — a ferramenta nunca afirma que falta licenca.
 
 **Aprovacao explicita.** `plan` nunca escreve no tenant. Somente `approve`
-(com confirmacao ou `--yes`) cria segments e dashboard.
+(com confirmacao ou `--yes`) cria segments e dashboard. O `selftest` segue a mesma
+regra: e somente leitura ate receber `--write`, e nesse caso limpa o que criou.
+
+**Tolerancia a variacoes de payload.** As respostas de criacao sao lidas por
+`extract_id`/`extract_version`, que aceitam `id`, `uid`, `documentId` e envelopes
+como `document`/`filterSegment`; o compartilhamento cai para `PATCH isPrivate`
+quando o tenant nao expoe `environment-shares`. O `selftest` reporta qual chave o
+tenant realmente usou, para que divergencias virem informacao e nao falha silenciosa.
 
 ## Ciclo de vida da proposta
 

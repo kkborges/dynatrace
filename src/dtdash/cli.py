@@ -356,6 +356,31 @@ def cmd_catalog(args):
     return EXIT_OK
 
 
+def cmd_selftest(args):
+    service = _service(args)
+    profile = service.tenant(args.tenant, required=True)
+    if args.write:
+        _out("O modo --write cria um segment e um dashboard temporarios no tenant")
+        _out("'%s' (%s) com o prefixo dtdash-selftest e os remove ao final."
+             % (profile.name, profile.platform_url))
+        if not _confirm("continuar?", args.yes):
+            _out("cancelado")
+            return EXIT_OK
+    report, path = service.selftest(
+        tenant=args.tenant, write=args.write, share=not args.no_share,
+        cleanup=not args.no_cleanup, queries=not args.no_queries,
+        metrics=not args.no_metrics,
+    )
+    if args.json:
+        _out(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        _out(report.to_text())
+        if path:
+            _out("")
+            _out("relatorio: %s" % path)
+    return EXIT_OK if report.ok else EXIT_INVALID
+
+
 def cmd_serve(args):
     from .server import serve
 
@@ -507,6 +532,23 @@ def build_parser():
     catalog_cmd = sub.add_parser("catalog", help="lista os blueprints disponiveis")
     catalog_cmd.set_defaults(func=cmd_catalog)
     catalog_cmd.add_argument("--domain")
+
+    selftest = sub.add_parser(
+        "selftest", help="verifica as APIs do tenant usadas pelo dtdash")
+    selftest.set_defaults(func=cmd_selftest)
+    selftest.add_argument("-t", "--tenant")
+    selftest.add_argument("--write", action="store_true",
+                          help="tambem cria e remove um segment e um dashboard temporarios")
+    selftest.add_argument("--no-share", action="store_true",
+                          help="nao testa o compartilhamento com o ambiente")
+    selftest.add_argument("--no-cleanup", action="store_true",
+                          help="mantem os objetos temporarios (para inspecao manual)")
+    selftest.add_argument("--no-queries", action="store_true",
+                          help="nao valida a sintaxe das DQL do catalogo")
+    selftest.add_argument("--no-metrics", action="store_true",
+                          help="nao verifica as chaves de metrica do catalogo")
+    selftest.add_argument("--json", action="store_true")
+    selftest.add_argument("--yes", action="store_true")
 
     serve = sub.add_parser("serve", help="interface web")
     serve.set_defaults(func=cmd_serve)

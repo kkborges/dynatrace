@@ -116,7 +116,42 @@ e enviar arquivos de exemplo.
 > Ao expor o servidor fora de `127.0.0.1`, defina `DTDASH_WEB_TOKEN` — o servidor
 > passa a exigir o header `X-Dtdash-Token`.
 
-## 5. Biblioteca de dashboards
+## 5. Validar contra um tenant real (`selftest`)
+
+Antes de confiar o fluxo a um cliente, rode a bateria de verificacao. Ela executa
+as chamadas **na mesma ordem em que a publicacao as usa** e diz, uma a uma, se a
+API respondeu como a documentacao descreve:
+
+```bash
+./dtdash selftest -t acme                 # somente leitura (nao escreve nada)
+./dtdash selftest -t acme --write --yes   # inclui criar/remover objetos temporarios
+./dtdash selftest -t acme --json          # saida para pipeline de CI
+```
+
+| Verificacao | O que prova |
+|---|---|
+| `config`, `auth` | perfil, credencial e obtencao do token (SSO no caso de OAuth) |
+| `documents.read`, `segments.read` | escopos de leitura e formato das listagens |
+| `grail.execute` | `query:execute` + `query:poll` com uma DQL sintetica (`data record(...)`, custo zero de scan) |
+| `grail.verify` | existencia do `query:verify` (aceita DQL valida, rejeita invalida) |
+| `grail.dataobjects` | quais data objects o tenant expoe |
+| `grail.dps` | consumo DPS — ausencia vira **aviso**, nunca conclusao de falta de licenca |
+| `metrics.catalog` | quais das metricas usadas pelos blueprints existem neste tenant, e quais blueprints ficam afetados |
+| `dql.blueprints` | sintaxe das 60 DQL do catalogo validadas pelo proprio tenant |
+| `segments.write` * | criacao, leitura e nome do campo do identificador |
+| `documents.write` * | criacao do dashboard e round-trip do conteudo |
+| `tile.segments` * | se a propriedade `segments` do tile sobrevive ao round-trip (se nao, use `--segment-mode dql`) |
+| `documents.share` * | `environment-shares` ou o fallback `PATCH isPrivate` |
+| `cleanup` * | remocao dos objetos temporarios (roda mesmo se algo falhar no meio) |
+
+`*` somente com `--write`. Os objetos temporarios usam o prefixo
+`dtdash-selftest` e sao removidos ao final; `--no-cleanup` mantem tudo para
+inspecao manual. O relatorio tambem fica em `.dtdash/selftest-<tenant>-<data>.json`
+e a mesma bateria esta na aba **Diagnostico** da interface web.
+
+Codigo de saida: `0` sem falhas, `2` com falhas — da para usar direto em CI.
+
+## 6. Biblioteca de dashboards
 
 ```
 dashboards/
@@ -137,7 +172,7 @@ publicacao — pronto para reuso:
 ./dtdash templates save --scope library     # promove um template para a biblioteca generica
 ```
 
-## 6. Comandos
+## 7. Comandos
 
 | Comando | Para que serve |
 |---|---|
@@ -151,6 +186,7 @@ publicacao — pronto para reuso:
 | `dtdash reject` | marca a proposta como rejeitada |
 | `dtdash templates list\|show\|save\|import\|reindex` | biblioteca de templates |
 | `dtdash validate <arquivo.json>` | valida um dashboard (estrutura, visualizacoes, DQL) |
+| `dtdash selftest` | verifica as APIs do tenant usadas pelo dtdash |
 | `dtdash catalog` | lista os blueprints de tile disponiveis |
 | `dtdash serve` | interface web |
 | `dtdash doctor` | diagnostico do ambiente |
@@ -159,7 +195,7 @@ Opcoes uteis de `plan`: `--audience exec|sre|dev|finops`, `--segment-mode
 tile|dql|both`, `--max-tiles N`, `--base <template>`, `--offline`,
 `--validate-live`, `--domain <dominio>`.
 
-## 7. Como o planejamento funciona
+## 8. Como o planejamento funciona
 
 1. **Leitura da necessidade** — separa requisitos, detecta dominios (servicos,
    Kubernetes, logs, problemas, RUM, banco, seguranca, negocio, DPS...), audiencia,
@@ -181,7 +217,7 @@ tile|dql|both`, `--max-tiles N`, `--base <template>`, `--offline`,
    validacao, fontes consultadas e a **matriz de cobertura** (cada necessidade
    declarada x tiles que a respondem).
 
-## 8. Desenvolvimento
+## 9. Desenvolvimento
 
 ```bash
 python3 -m unittest discover -s tests -t .

@@ -23,6 +23,54 @@ SEGMENTS_PATH = "/platform/storage/filter-segments/v1/filter-segments"
 QUERY_PATH = "/platform/storage/query/v1"
 
 
+ID_KEYS = ("id", "uid", "documentId", "document_id", "filterSegmentId", "segmentId")
+VERSION_KEYS = ("version", "optimisticLockingVersion", "optimistic_locking_version")
+
+
+def extract_id_pair(payload, extra_keys=()):
+    """Devolve (chave, identificador) encontrados na resposta de criacao.
+
+    As APIs de plataforma variam entre ``id``, ``uid`` e ``documentId`` conforme o
+    servico e a versao; algumas embrulham o objeto em ``document``/``filterSegment``.
+    Saber qual chave respondeu ajuda o ``dtdash selftest`` a reportar divergencias.
+    """
+
+    if not isinstance(payload, dict):
+        return "", ""
+    for key in tuple(extra_keys) + ID_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return key, value
+    for wrapper in ("document", "filterSegment", "result", "data"):
+        nested = payload.get(wrapper)
+        if isinstance(nested, dict):
+            key, value = extract_id_pair(nested, extra_keys)
+            if value:
+                return "%s.%s" % (wrapper, key), value
+    return "", ""
+
+
+def extract_id(payload, extra_keys=()):
+    """Le o identificador de uma resposta de criacao."""
+
+    return extract_id_pair(payload, extra_keys)[1]
+
+
+def extract_version(payload):
+    if not isinstance(payload, dict):
+        return None
+    for key in VERSION_KEYS:
+        if payload.get(key) is not None:
+            return payload[key]
+    for wrapper in ("document", "filterSegment"):
+        nested = payload.get(wrapper)
+        if isinstance(nested, dict):
+            found = extract_version(nested)
+            if found is not None:
+                return found
+    return None
+
+
 def _error_message(response):
     payload = response.json()
     if isinstance(payload, dict):
@@ -100,7 +148,13 @@ class DynatraceClient(object):
         )
         self._expect(response, "listagem de documentos")
         payload = response.json() or {}
-        return payload.get("documents") or payload.get("results") or []
+        if isinstance(payload, list):
+            return payload
+        for key in ("documents", "results", "items", "content"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+        return []
 
     def get_document(self, document_id):
         response = self.call("GET", "%s/%s" % (DOCUMENTS_PATH, document_id))
@@ -136,7 +190,12 @@ class DynatraceClient(object):
         files = [("content", "%s.json" % _slug(name), "application/json", body)]
         response = self.call("POST", DOCUMENTS_PATH, multipart=(fields, files))
         self._expect(response, "criacao do dashboard")
-        return response.json() or {}
+        payload = response.json() or {}
+        key, value = extract_id_pair(payload)
+        if value:
+            payload.setdefault("_idKey", key)
+            payload["id"] = value
+        return payload
 
     def update_document(self, document_id, content, name=None, version=None,
                         doc_type="dashboard"):
@@ -164,7 +223,11 @@ class DynatraceClient(object):
         return True
 
     def share_document_with_environment(self, document_id, access="read"):
-        """Disponibiliza o dashboard para todo o ambiente (view-only)."""
+        """Disponibiliza o dashboard para todo o ambiente (view-only).
+
+        Caminho principal: environment-shares. Se o tenant nao expuser esse
+        recurso, cai para ``PATCH /documents/{id}`` com ``isPrivate=false``.
+        """
 
         response = self.call(
             "POST",
@@ -173,8 +236,30 @@ class DynatraceClient(object):
         )
         if response.status == 409:  # ja compartilhado
             return {"documentId": document_id, "status": "already-shared"}
+        if response.status in (404, 405, 501):
+            return self._share_via_patch(document_id)
         self._expect(response, "compartilhamento do dashboard")
-        return response.json() or {}
+        payload = response.json() or {}
+        payload.setdefault("method", "environment-shares")
+        return payload
+
+    def _share_via_patch(self, document_id):
+        metadata = {}
+        try:
+            metadata = self.get_document(document_id)
+        except ApiError:
+            pass
+        version = extract_version(metadata)
+        response = self.call(
+            "PATCH",
+            "%s/%s" % (DOCUMENTS_PATH, document_id),
+            params={"optimistic-locking-version": version} if version else None,
+            multipart=({"isPrivate": "false"}, []),
+        )
+        self._expect(response, "compartilhamento do dashboard (isPrivate)")
+        payload = response.json() or {}
+        payload.setdefault("method", "patch-isPrivate")
+        return payload
 
     # ----------------------------------------------------------------- segments
     def list_segments(self, lean=True):
@@ -186,11 +271,36 @@ class DynatraceClient(object):
         payload = response.json() or {}
         if isinstance(payload, list):
             return payload
-        return payload.get("filterSegments") or payload.get("segments") or []
+        for key in ("filterSegments", "segments", "results", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+        return []
 
     def create_segment(self, segment):
         response = self.call("POST", SEGMENTS_PATH, json_body=segment)
         self._expect(response, "criacao do segment '%s'" % segment.get("name"))
+        payload = response.json() or {}
+        key, value = extract_id_pair(payload)
+        if value:
+            payload.setdefault("_idKey", key)
+            payload["uid"] = value
+        return payload
+
+    def delete_segment(self, uid, version=None):
+        response = self.call(
+            "DELETE",
+            "%s/%s" % (SEGMENTS_PATH, uid),
+            params={"optimistic-locking-version": version} if version else None,
+        )
+        if response.status == 404:
+            return False
+        self._expect(response, "remocao do segment")
+        return True
+
+    def get_segment(self, uid):
+        response = self.call("GET", "%s/%s" % (SEGMENTS_PATH, uid))
+        self._expect(response, "leitura do segment")
         return response.json() or {}
 
     def find_segment_by_name(self, name):

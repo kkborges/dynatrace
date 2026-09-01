@@ -68,6 +68,7 @@ a{color:var(--accent)}
   <button data-tab="propostas">Propostas</button>
   <button data-tab="templates">Templates</button>
   <button data-tab="conhecimento">Conhecimento</button>
+  <button data-tab="diagnostico">Diagnostico</button>
 </nav>
 <main>
 
@@ -166,6 +167,28 @@ a{color:var(--accent)}
   </div>
 </section>
 
+<section class="panel" id="tab-diagnostico">
+  <div class="card">
+    <h2>Selftest do tenant</h2>
+    <div class="hint">Executa, na ordem do fluxo de publicacao, as chamadas as APIs
+    Dynatrace usadas pelo dtdash e aponta divergencias (endpoint ausente, escopo
+    faltando, campo com outro nome, metrica inexistente). Por padrao e somente leitura.</div>
+    <div class="row" style="margin-top:12px">
+      <div><label>Tenant</label><select id="stTenant"></select></div>
+      <div style="display:flex;align-items:flex-end">
+        <button class="ghost" id="btnSelftest" style="width:100%">Executar selftest</button>
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" id="stWrite"><label for="stWrite" style="margin:0">
+      modo escrita: cria e remove um segment e um dashboard temporarios (prefixo dtdash-selftest)</label></div>
+    <div class="check"><input type="checkbox" id="stQueries" checked><label for="stQueries" style="margin:0">
+      validar a sintaxe das DQL de todos os blueprints</label></div>
+    <div class="msg" id="msgSelftest"></div>
+    <table id="tblSelftest" style="margin-top:14px"><thead><tr><th>Status</th><th>Verificacao</th>
+    <th>Detalhe</th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -193,6 +216,7 @@ document.querySelectorAll("nav button").forEach((btn) => {
     $("tab-" + btn.dataset.tab).classList.add("active");
     if (btn.dataset.tab === "propostas") carregarPropostas();
     if (btn.dataset.tab === "templates") carregarTemplates();
+    if (btn.dataset.tab === "diagnostico") sincronizarTenantSelftest();
   };
 });
 
@@ -358,6 +382,64 @@ $("btnUpload").onclick = async () => {
     show($("msgKb"), "arquivos recebidos: " + data.saved.length, true);
     $("kbStats").textContent = JSON.stringify(data.knowledge, null, 2);
   } catch (error) { show($("msgKb"), "erro: " + error.message, false); }
+};
+
+function sincronizarTenantSelftest() {
+  const origem = $("tenant");
+  const destino = $("stTenant");
+  destino.innerHTML = "";
+  Array.from(origem.options).forEach((option) => {
+    if (!option.value) return;
+    const clone = document.createElement("option");
+    clone.value = option.value;
+    clone.textContent = option.textContent;
+    clone.selected = option.selected;
+    destino.appendChild(clone);
+  });
+  if (!destino.options.length) {
+    const vazio = document.createElement("option");
+    vazio.textContent = "(nenhum tenant configurado)";
+    vazio.value = "";
+    destino.appendChild(vazio);
+  }
+}
+
+const ST_TAG = { ok: "ok", warn: "warn", fail: "err", skip: "" };
+
+$("btnSelftest").onclick = async () => {
+  const tenant = $("stTenant").value;
+  if (!tenant) { show($("msgSelftest"), "configure um tenant primeiro.", false); return; }
+  const write = $("stWrite").checked;
+  if (write && !confirm("O modo escrita cria e remove um segment e um dashboard temporarios em "
+      + tenant + ". Continuar?")) return;
+  const button = $("btnSelftest");
+  button.disabled = true;
+  show($("msgSelftest"), "executando...", true);
+  try {
+    const data = await api("/api/selftest", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant: tenant, write: write, queries: $("stQueries").checked })
+    });
+    const tbody = $("tblSelftest").querySelector("tbody");
+    tbody.innerHTML = "";
+    data.checks.forEach((check) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td><span class="tag ' + (ST_TAG[check.status] || "") + '">' +
+        check.status + "</span></td><td>" + check.title + "<br><code>" + check.id +
+        "</code></td><td>" + (check.detail || "") +
+        (check.hint && check.status !== "ok" ? '<div class="hint">-> ' + check.hint + "</div>" : "") +
+        "</td>";
+      tbody.appendChild(tr);
+    });
+    const counts = data.counts;
+    show($("msgSelftest"), counts.ok + " ok, " + counts.warn + " aviso(s), " +
+      counts.fail + " falha(s) em " + data.durationSeconds + "s"
+      + (data.reportPath ? " | relatorio: " + data.reportPath : ""), data.ok);
+  } catch (error) {
+    show($("msgSelftest"), "erro: " + error.message, false);
+  } finally {
+    button.disabled = false;
+  }
 };
 
 carregarEstado();

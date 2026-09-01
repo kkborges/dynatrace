@@ -74,6 +74,18 @@ fetch dt.system.events, from:-24h
 * sem registros -> **nao** conclua ausencia de licenca: eventos de billing medem
   consumo, nao entitlement (confirme em *Account Management > Subscription*).
 
+## Verificacao automatica
+
+`dtdash selftest -t <tenant>` exercita todos os endpoints desta pagina na ordem em
+que a publicacao os usa. Detalhes que a bateria confirma no tenant real:
+
+* qual chave carrega o identificador na resposta de criacao (`id`, `uid`,
+  `documentId`...) — o cliente aceita todas, mas o relatorio informa qual chegou;
+* se `query:verify` existe (sem ele a validacao cai para execucao com `limit`);
+* se `environment-shares` existe (sem ele o share cai para `PATCH isPrivate=false`);
+* se a propriedade `segments` do tile sobrevive ao round-trip de gravacao/leitura;
+* quais chaves de metrica do catalogo existem neste tenant.
+
 ## Descoberta usada no planejamento
 
 | Objetivo | DQL |

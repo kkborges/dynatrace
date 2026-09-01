@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 
 from .builder import build_dashboard, dashboard_to_spec
 from .capabilities import TenantCapabilities
@@ -14,6 +15,7 @@ from .library import SCOPE_CLIENT, TemplateLibrary
 from .planner import Planner
 from .preview import render_html, render_text
 from .proposals import ProposalStore, STATUS_APPROVED, STATUS_DEPLOYED, STATUS_REJECTED
+from .selftest import SelfTest
 from .validator import validate_queries_live, validate_spec
 
 
@@ -195,6 +197,27 @@ class DashboardService(object):
         )
         proposal.set_status(STATUS_REJECTED, reason=reason)
         return proposal
+
+    # --------------------------------------------------------------- selftest
+    def selftest(self, tenant=None, write=False, share=True, cleanup=True,
+                 queries=True, metrics=True, save=True):
+        """Roda a bateria de verificacao contra o tenant e guarda o relatorio."""
+
+        client = self.client_for(tenant)
+        report = SelfTest(client).run(
+            write=write, share=share, cleanup=cleanup, queries=queries, metrics=metrics
+        )
+        path = ""
+        if save:
+            os.makedirs(self.workspace.state_dir, exist_ok=True)
+            path = os.path.join(
+                self.workspace.state_dir,
+                "selftest-%s-%s.json" % (client.profile.name,
+                                         time.strftime("%Y%m%d-%H%M%S")),
+            )
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(report.to_dict(), handle, ensure_ascii=False, indent=2)
+        return report, path
 
     # -------------------------------------------------------------- templates
     def save_as_template(self, proposal_id=None, scope="library", client=None):

@@ -163,6 +163,19 @@ class DtDashHandler(BaseHTTPRequestHandler):
                     ))
             if path == "/api/upload":
                 return self._send(200, self._upload())
+            if path == "/api/selftest":
+                body = self._json_body()
+                report, saved = self.service.selftest(
+                    tenant=body.get("tenant") or None,
+                    write=bool(body.get("write")),
+                    share=body.get("share", True),
+                    cleanup=body.get("cleanup", True),
+                    queries=body.get("queries", True),
+                    metrics=body.get("metrics", True),
+                )
+                payload = report.to_dict()
+                payload["reportPath"] = saved
+                return self._send(200, payload)
             if path.startswith("/api/proposals/"):
                 parts = path.split("/")
                 proposal_id = parts[3]
