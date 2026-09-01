@@ -1,0 +1,49 @@
+{
+  "name": "Exemplo - Servicos (template base)",
+  "type": "dashboard",
+  "description": "Template minimo de exemplo, util para testar o fluxo --base do dtdash.",
+  "content": {
+    "version": 21,
+    "variables": [],
+    "tiles": {
+      "1": {
+        "type": "markdown",
+        "content": "# Exemplo de template\nTemplate minimo com um KPI e uma serie temporal."
+      },
+      "2": {
+        "type": "data",
+        "title": "Requisicoes no periodo",
+        "query": "timeseries total = sum(dt.service.request.count)\n| fieldsAdd requisicoes = arraySum(total)\n| fields requisicoes",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "requisicoes",
+            "label": "Requisicoes",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {}
+      },
+      "3": {
+        "type": "data",
+        "title": "Tempo de resposta p90 por servico",
+        "query": "timeseries p90 = percentile(dt.service.request.response_time, 90), by:{dt.service.name}",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {"position": "bottom", "showLegend": true}
+          }
+        },
+        "querySettings": {}
+      }
+    },
+    "layouts": {
+      "1": {"x": 0, "y": 0, "w": 24, "h": 3},
+      "2": {"x": 0, "y": 3, "w": 6, "h": 4},
+      "3": {"x": 6, "y": 3, "w": 18, "h": 7}
+    }
+  }
+}

@@ -1,0 +1,370 @@
+{
+  "name": "Experiencia do Usuario (RUM)",
+  "type": "dashboard",
+  "description": "Dashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: rum, services. Audiencia: sre.",
+  "content": {
+    "version": 21,
+    "variables": [
+      {
+        "key": "Aplicacao",
+        "type": "query",
+        "visible": true,
+        "editable": true,
+        "version": 2,
+        "input": "fetch user.events\n| filter isNotNull(frontend.name)\n| dedup frontend.name\n| fields frontend.name\n| sort frontend.name asc\n| limit 100",
+        "multiple": true,
+        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      }
+    ],
+    "tiles": {
+      "1": {
+        "type": "markdown",
+        "content": "# Experiencia do Usuario (RUM)\n\nDashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: rum, services. Audiencia: sre.\n\n**Perguntas que este dashboard responde:**\n- Dashboard de experiencia do usuario: usuarios ativos e sessoes por aplicacao, erros de frontend, Core Web Vitals p75, duracao das acoes de usuario e usuarios por pais."
+      },
+      "2": {
+        "type": "markdown",
+        "content": "## Experiencia do usuario"
+      },
+      "3": {
+        "type": "data",
+        "title": "Usuarios ativos por aplicacao",
+        "query": "timeseries usuarios = countDistinct(dt.frontend.user.active.estimated_count),\n  by:{frontend.name}, filter: { in(frontend.name, array($Aplicacao)) }",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quantos usuarios estao usando as aplicacoes?"
+      },
+      "4": {
+        "type": "data",
+        "title": "Erros de frontend",
+        "query": "timeseries erros = sum(dt.frontend.error.count), by:{frontend.name}, filter: { in(frontend.name, array($Aplicacao)) }",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Os usuarios estao encontrando erros na interface?"
+      },
+      "5": {
+        "type": "data",
+        "title": "Core Web Vitals (p75) por aplicacao",
+        "query": "timeseries {\n  lcp_p75 = percentile(dt.frontend.web.page.largest_contentful_paint, 75, scalar: true),\n  inp_p75 = percentile(dt.frontend.web.page.interaction_to_next_paint, 75, scalar: true),\n  cls_p75 = percentile(dt.frontend.web.page.cumulative_layout_shift, 75, scalar: true)\n}, by:{frontend.name}, filter: { in(frontend.name, array($Aplicacao)) }\n| sort lcp_p75 desc",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "A experiencia web esta dentro dos Core Web Vitals?"
+      },
+      "6": {
+        "type": "data",
+        "title": "Sessoes ativas por aplicacao",
+        "query": "timeseries sessoes = countDistinct(dt.frontend.session.active.estimated_count),\n  by:{frontend.name}, filter: { in(frontend.name, array($Aplicacao)) }",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Como evolui o numero de sessoes?"
+      },
+      "7": {
+        "type": "data",
+        "title": "Duracao das acoes de usuario",
+        "query": "timeseries duracao = avg(dt.frontend.user_action.duration), by:{frontend.name}, filter: { in(frontend.name, array($Aplicacao)) }",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "As acoes do usuario estao rapidas?"
+      },
+      "8": {
+        "type": "data",
+        "title": "Usuarios por pais",
+        "query": "timeseries usuarios = countDistinct(dt.frontend.user.active.estimated_count, scalar: true),\n  by:{geo.country.iso_code}\n| filter isNotNull(geo.country.iso_code)\n| sort usuarios desc",
+        "visualization": "choroplethMap",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "De onde vem o trafego dos usuarios?"
+      },
+      "9": {
+        "type": "markdown",
+        "content": "## Resumo executivo"
+      },
+      "10": {
+        "type": "data",
+        "title": "Taxa de erro global",
+        "query": "timeseries {\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}\n| fieldsAdd requisicoes = arraySum(total), erros = arraySum(falhas)\n| fieldsAdd taxa_erro_pct = if(requisicoes > 0, (erros * 100.0) / requisicoes, else: 0.0)\n| fields taxa_erro_pct",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "taxa_erro_pct",
+            "label": "Taxa de erro (%)",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Qual a taxa de erro consolidada do ambiente?"
+      },
+      "11": {
+        "type": "data",
+        "title": "Total de requisicoes",
+        "query": "timeseries total = sum(dt.service.request.count)\n| fieldsAdd requisicoes = arraySum(total)\n| fields requisicoes",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "requisicoes",
+            "label": "Requisicoes",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Qual o volume total de requisicoes no periodo?"
+      },
+      "12": {
+        "type": "markdown",
+        "content": "## Servicos"
+      },
+      "13": {
+        "type": "data",
+        "title": "Taxa de erro por servico",
+        "query": "timeseries {\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}, by:{dt.service.name}\n| fieldsAdd taxa_erro_pct = (falhas[] * 100.0) / total[]",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quais servicos estao falhando e quando?"
+      },
+      "14": {
+        "type": "data",
+        "title": "Tempo de resposta p90 por servico",
+        "query": "timeseries p90 = percentile(dt.service.request.response_time, 90), by:{dt.service.name}",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Os servicos estao dentro do tempo de resposta esperado?"
+      },
+      "15": {
+        "type": "data",
+        "title": "Requisicoes por servico",
+        "query": "timeseries requisicoes = sum(dt.service.request.count), by:{dt.service.name}",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Qual o volume de requisicoes por servico?"
+      },
+      "16": {
+        "type": "data",
+        "title": "Sinais de ouro por servico",
+        "query": "timeseries {\n  p50 = percentile(dt.service.request.response_time, 50),\n  p90 = percentile(dt.service.request.response_time, 90),\n  p99 = percentile(dt.service.request.response_time, 99),\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}, by:{dt.service.name}\n| fieldsAdd\n    requisicoes = arraySum(total),\n    erros = arraySum(falhas),\n    p50_ms = arrayAvg(p50) / 1000,\n    p90_ms = arrayAvg(p90) / 1000,\n    p99_ms = arrayAvg(p99) / 1000\n| fieldsAdd taxa_erro_pct = if(requisicoes > 0, (erros * 100.0) / requisicoes, else: 0.0)\n| fields dt.service.name, requisicoes, erros, taxa_erro_pct, p50_ms, p90_ms, p99_ms\n| sort taxa_erro_pct desc\n| limit 25",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "Qual a visao consolidada de trafego, erros e latencia por servico?"
+      },
+      "17": {
+        "type": "data",
+        "title": "Top 10 servicos mais lentos (p90)",
+        "query": "timeseries p90 = percentile(dt.service.request.response_time, 90), by:{dt.service.name}\n| fieldsAdd p90_ms = arrayAvg(p90) / 1000\n| fields dt.service.name, p90_ms\n| sort p90_ms desc\n| limit 10",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "categoryAxis": {
+              "tickLayout": "horizontal"
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quais servicos mais degradam a experiencia?"
+      }
+    },
+    "layouts": {
+      "1": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "2": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 2
+      },
+      "3": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      },
+      "4": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      },
+      "5": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "6": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 7
+      },
+      "7": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 7
+      },
+      "8": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "9": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 2
+      },
+      "10": {
+        "x": 0,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "11": {
+        "x": 6,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "12": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 2
+      },
+      "13": {
+        "x": 0,
+        "y": 36,
+        "w": 12,
+        "h": 7
+      },
+      "14": {
+        "x": 12,
+        "y": 36,
+        "w": 12,
+        "h": 7
+      },
+      "15": {
+        "x": 0,
+        "y": 43,
+        "w": 12,
+        "h": 7
+      },
+      "16": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 10
+      },
+      "17": {
+        "x": 0,
+        "y": 60,
+        "w": 12,
+        "h": 7
+      }
+    },
+    "settings": {
+      "gridLayout": {
+        "columnsCount": 24
+      }
+    }
+  },
+  "dtdash": {
+    "origin": "biblioteca",
+    "scope": "library",
+    "client": "generico",
+    "savedAt": "2026-09-01T11:41:45",
+    "reusable": true,
+    "audience": "sre",
+    "domains": [
+      "rum",
+      "services"
+    ],
+    "tags": [
+      "dtdash",
+      "rum",
+      "services",
+      "sre"
+    ],
+    "tenant": "",
+    "requestText": "Dashboard de experiencia do usuario: usuarios ativos e sessoes por aplicacao, erros de frontend, Core Web Vitals p75, duracao das acoes de usuario e usuarios por pais.",
+    "requirements": [
+      "Dashboard de experiencia do usuario: usuarios ativos e sessoes por aplicacao, erros de frontend, Core Web Vitals p75, duracao das acoes de usuario e usuarios por pais."
+    ],
+    "segments": [],
+    "dataObjects": [
+      "rum",
+      "services"
+    ]
+  }
+}
