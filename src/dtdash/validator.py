@@ -239,20 +239,33 @@ def validate_spec(spec, document=None):
                        % (segment.name, ", ".join(
                            sorted({i["filter"].split(" ")[0] for i in segment.includes}))),
                        rule="segments")
-    online = bool((spec.capabilities or {}).get("online"))
-    unverified = sorted({m for t in spec.tiles for m in (t.unverified_metrics or [])})
-    if unverified and not online:
-        report.add(
-            "info",
-            "metricas nao verificadas (sem conexao com o tenant): %s"
-            % ", ".join(unverified[:12]) + ("..." if len(unverified) > 12 else ""),
-            rule="metrics",
-        )
-    elif online:
-        for tile in spec.tiles:
-            for metric in tile.unverified_metrics or []:
-                report.add("warning", "metrica nao encontrada no tenant: %s" % metric,
+    summary = spec.metrics_summary or {}
+    if summary.get("available") is not True and summary.get("counts"):
+        report.add("info", "metricas nao verificadas: %s"
+                   % (summary.get("reason") or "motivo desconhecido"), rule="metrics")
+    for tile in spec.tiles:
+        if tile.availability == "missing":
+            report.add("warning",
+                       "tile depende de metrica inexistente no tenant: %s"
+                       % ", ".join(tile.unverified_metrics or []),
+                       tile=tile.tile_id, rule="metrics")
+        for resolution in tile.metric_resolutions or []:
+            if resolution.get("status") == "alias":
+                report.add("info",
+                           "chave classica em uso: %s -> %s"
+                           % (resolution.get("key"), resolution.get("resolved")),
                            tile=tile.tile_id, rule="metrics")
+    for entry in spec.dropped_tiles or []:
+        report.add("info", "tile removido por metrica ausente: %s (%s)"
+                   % (entry.get("title"), ", ".join(entry.get("metrics") or [])),
+                   rule="metrics")
+    denied = (spec.capabilities or {}).get("deniedTables") or []
+    if denied:
+        report.add("warning",
+                   "tabelas sem permissao de leitura no tenant: %s (permissoes: %s)"
+                   % (", ".join(denied),
+                      ", ".join((spec.capabilities or {}).get("missingPermissions") or [])),
+                   rule="permissions")
     return report
 
 

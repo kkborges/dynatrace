@@ -9,7 +9,9 @@ from .capabilities import TenantCapabilities
 from .client import DynatraceClient
 from .config import Config, Workspace
 from .deploy import Deployer
+from .config import TenantProfile
 from .errors import ConfigError, DtDashError
+from .history import DeploymentHistory
 from .knowledge import KnowledgeStore, KnowledgeSync
 from .library import SCOPE_CLIENT, TemplateLibrary
 from .planner import Planner
@@ -25,6 +27,7 @@ class DashboardService(object):
         self.config = config or Config.load(self.workspace)
         self.proposals = ProposalStore(self.workspace)
         self.library = TemplateLibrary(self.workspace)
+        self.history = DeploymentHistory(self.workspace)
         self._knowledge = None
         self._clients = {}
 
@@ -91,7 +94,7 @@ class DashboardService(object):
     # ------------------------------------------------------------------ plano
     def plan(self, text, tenant=None, name=None, audience=None, segment_mode="tile",
              max_tiles=None, base_template=None, probe=True, validate_live=False,
-             client_name=None, extra_domains=None):
+             client_name=None, extra_domains=None, on_missing="drop"):
         profile = self.tenant(tenant, required=False)
         caps = self.capabilities(tenant, probe=probe)
         dt_client = None
@@ -116,6 +119,7 @@ class DashboardService(object):
             audience=audience,
             base_spec=base_spec,
             extra_domains=extra_domains,
+            on_missing=on_missing,
         )
         # sugestoes de templates ja existentes (reuso entre clientes)
         suggestions = self.library.search(text, limit=5)
@@ -155,7 +159,8 @@ class DashboardService(object):
 
     # -------------------------------------------------------------- aprovacao
     def approve(self, proposal_id=None, tenant=None, share=False, save_template=True,
-                scope=SCOPE_CLIENT, force=False, dry_run=False, client_name=None):
+                scope=SCOPE_CLIENT, force=False, dry_run=False, client_name=None,
+                user=""):
         proposal = (
             self.proposals.get(proposal_id) if proposal_id else self.proposals.latest()
         )
@@ -188,8 +193,11 @@ class DashboardService(object):
             url=result.url,
             templatePath=result.template_path,
         )
+        entry = self.history.record(
+            spec, result, proposal_id=proposal.proposal_id, user=user, dry_run=dry_run
+        )
         return {"proposal": proposal, "result": result, "document": document,
-                "report": report, "spec": spec}
+                "report": report, "spec": spec, "history": entry}
 
     def reject(self, proposal_id=None, reason=""):
         proposal = (
@@ -197,6 +205,88 @@ class DashboardService(object):
         )
         proposal.set_status(STATUS_REJECTED, reason=reason)
         return proposal
+
+    # ------------------------------------------------------- tenants/clientes
+    def tenants(self):
+        out = []
+        default = self.config.setting("default_tenant")
+        for name in self.config.tenant_names():
+            profile = self.config.get_tenant(name)
+            history = self.history.list(tenant=name, limit=1)
+            out.append({
+                "name": name,
+                "client": profile.client_name,
+                "environmentId": profile.environment_id,
+                "platformUrl": profile.platform_url,
+                "authMethod": profile.auth_method,
+                "hasCredentials": profile.has_credentials(),
+                "credentialSource": (profile.platform_token_env
+                                     if profile.auth_method == "platform_token"
+                                     else profile.oauth_client_id_env),
+                "storedSecret": bool(profile.platform_token or profile.oauth_client_secret),
+                "notes": profile.notes,
+                "default": name == default,
+                "dashboards": len(self.history.list(tenant=name, limit=500)),
+                "lastDeployment": history[0]["when"] if history else "",
+            })
+        return out
+
+    def upsert_tenant(self, data):
+        """Cria ou atualiza um cliente/tenant a partir do formulario da web."""
+
+        name = (data.get("name") or "").strip()
+        if not name:
+            raise ConfigError("informe o identificador do tenant")
+        existing = self.config.try_get_tenant(name)
+        profile = existing or TenantProfile(name=name)
+        profile.name = name
+        profile.client_name = data.get("client") or profile.client_name or name
+        if data.get("environmentId"):
+            profile.environment_id = data["environmentId"].strip()
+            profile.platform_url = ""
+            profile.environment_url = ""
+        if data.get("platformUrl"):
+            profile.platform_url = data["platformUrl"].strip()
+        if data.get("authMethod") in ("platform_token", "oauth"):
+            profile.auth_method = data["authMethod"]
+        if data.get("accountUrn"):
+            profile.oauth_account_urn = data["accountUrn"].strip()
+        if data.get("tokenEnv"):
+            profile.platform_token_env = data["tokenEnv"].strip()
+        if data.get("clientIdEnv"):
+            profile.oauth_client_id_env = data["clientIdEnv"].strip()
+        if data.get("clientSecretEnv"):
+            profile.oauth_client_secret_env = data["clientSecretEnv"].strip()
+        if data.get("notes") is not None:
+            profile.notes = data["notes"]
+        # segredos so sao gravados quando enviados explicitamente
+        if data.get("platformToken"):
+            profile.platform_token = data["platformToken"].strip()
+        if data.get("oauthClientId"):
+            profile.oauth_client_id = data["oauthClientId"].strip()
+        if data.get("oauthClientSecret"):
+            profile.oauth_client_secret = data["oauthClientSecret"].strip()
+        profile.normalize()
+        self.config.put_tenant(profile)
+        self.config.save()
+        self._clients.pop(name, None)
+        self._invalidate_caps(name)
+        return profile
+
+    def delete_tenant(self, name):
+        self.config.remove_tenant(name)
+        self.config.save()
+        self._clients.pop(name, None)
+        self._invalidate_caps(name)
+        return True
+
+    def _invalidate_caps(self, name):
+        path = os.path.join(self.workspace.state_dir, "caps-%s.json" % name)
+        if os.path.isfile(path):
+            try:
+                os.remove(path)
+            except OSError:  # pragma: no cover
+                pass
 
     # --------------------------------------------------------------- selftest
     def selftest(self, tenant=None, write=False, share=True, cleanup=True,

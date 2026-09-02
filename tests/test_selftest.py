@@ -129,7 +129,11 @@ class FakeTenant(object):
         if query.strip().startswith("metrics"):
             import re
 
+            from dtdash import catalog
+
             keys = re.findall(r'"([^"]+)"', query)
+            if not keys:  # leitura do indice completo (MetricCatalogView)
+                keys = sorted({m for bp in catalog.CATALOG for m in bp.metrics})
             return [{"metric.key": k} for k in keys if k not in self.missing_metrics]
         if query.strip().startswith("data record"):
             return [{"dtdash": "selftest"}]

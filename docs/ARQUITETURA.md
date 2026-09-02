@@ -41,6 +41,9 @@ exemplos/uploads    segments, requisitos)        layouts, settings)   templates 
 | `deploy.py` | segments -> dashboard -> compartilhamento -> template |
 | `library.py` | biblioteca `dashboards/library` e `dashboards/clients` + indice |
 | `selftest.py` | bateria de verificacao das APIs do tenant (leitura e, opcionalmente, escrita) |
+| `webauth.py` | usuarios (PBKDF2) e sessoes da interface web |
+| `history.py` | historico de dashboards publicados por cliente |
+| `metrics.py` | resolucao de chaves de metrica Grail x classicas |
 | `service.py` | orquestra o fluxo para CLI e web |
 
 ## Decisoes de projeto

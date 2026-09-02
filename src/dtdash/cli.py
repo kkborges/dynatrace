@@ -135,6 +135,16 @@ def cmd_tenants(args):
         _out("data objects ...: %d" % len(caps.data_objects))
         if caps.dps_event_types:
             _out("consumo DPS ....: %s" % ", ".join(caps.dps_event_types[:6]))
+        if caps.tables:
+            _out("")
+            _out("%-20s %-9s %-32s %s" % ("TABELA", "STATUS", "PERMISSAO", "DETALHE"))
+            for table, info in sorted(caps.tables.items()):
+                _out("%-20s %-9s %-32s %s"
+                     % (table, info.get("status", "?"), info.get("permission", ""),
+                        (info.get("detail") or "")[:40]))
+            if caps.missing_permissions():
+                _out("")
+                _out("permissoes a conceder: %s" % ", ".join(caps.missing_permissions()))
         for error in caps.errors:
             _err("erro: %s" % error)
         return EXIT_OK if caps.online else EXIT_ERROR
@@ -197,6 +207,7 @@ def cmd_plan(args):
         validate_live=args.validate_live,
         client_name=args.client,
         extra_domains=args.domain or None,
+        on_missing=args.on_missing,
     )
     proposal = outcome["proposal"]
     report = outcome["report"]
@@ -356,6 +367,53 @@ def cmd_catalog(args):
     return EXIT_OK
 
 
+def cmd_users(args):
+    from .webauth import ROLES, UserStore
+
+    workspace = Workspace(args.workspace)
+    workspace.ensure()
+    store = UserStore(workspace)
+
+    if args.users_command == "list":
+        if store.empty():
+            _out("nenhum usuario - o primeiro sera criado ao iniciar 'dtdash serve'")
+            return EXIT_OK
+        for name in store.names():
+            user = store.users[name]
+            _out("%-20s %-10s %s" % (name, user.get("role"), user.get("fullName", "")))
+        return EXIT_OK
+
+    if args.users_command == "add":
+        password = args.password or _ask_password()
+        user = store.add(args.name, password, role=args.role, full_name=args.full_name or "")
+        _out("usuario '%s' criado (papel %s)" % (user["name"], user["role"]))
+        return EXIT_OK
+
+    if args.users_command == "passwd":
+        store.set_password(args.name, args.password or _ask_password())
+        _out("senha de '%s' atualizada" % args.name)
+        return EXIT_OK
+
+    if args.users_command == "remove":
+        store.remove(args.name)
+        _out("usuario '%s' removido" % args.name)
+        return EXIT_OK
+
+    raise DtDashError("subcomando de users desconhecido (papeis: %s)" % ", ".join(ROLES))
+
+
+def _ask_password():
+    import getpass
+
+    if not sys.stdin.isatty():
+        raise DtDashError("informe --password em execucao nao interativa")
+    first = getpass.getpass("senha: ")
+    second = getpass.getpass("repita: ")
+    if first != second:
+        raise DtDashError("as senhas nao conferem")
+    return first
+
+
 def cmd_selftest(args):
     service = _service(args)
     profile = service.tenant(args.tenant, required=True)
@@ -472,6 +530,9 @@ def build_parser():
     plan.add_argument("--max-tiles", type=int)
     plan.add_argument("--base", help="template base (ref ou nome)")
     plan.add_argument("--domain", action="append", help="forca um dominio adicional")
+    plan.add_argument("--on-missing", choices=["drop", "keep"], default="drop",
+                      help="o que fazer com tiles cuja metrica nao existe no tenant "
+                           "(padrao: remover)")
     plan.add_argument("--offline", action="store_true", help="nao consulta o tenant")
     plan.add_argument("--validate-live", action="store_true",
                       help="valida as DQL executando no tenant")
@@ -549,6 +610,21 @@ def build_parser():
                           help="nao verifica as chaves de metrica do catalogo")
     selftest.add_argument("--json", action="store_true")
     selftest.add_argument("--yes", action="store_true")
+
+    users = sub.add_parser("users", help="usuarios da interface web")
+    users.set_defaults(func=cmd_users)
+    usub = users.add_subparsers(dest="users_command", required=True)
+    usub.add_parser("list", help="lista usuarios")
+    uadd = usub.add_parser("add", help="cria um usuario")
+    uadd.add_argument("name")
+    uadd.add_argument("--password", help="omita para digitar interativamente")
+    uadd.add_argument("--role", choices=["admin", "operador", "leitor"], default="operador")
+    uadd.add_argument("--full-name")
+    upass = usub.add_parser("passwd", help="troca a senha")
+    upass.add_argument("name")
+    upass.add_argument("--password")
+    urem = usub.add_parser("remove", help="remove um usuario")
+    urem.add_argument("name")
 
     serve = sub.add_parser("serve", help="interface web")
     serve.set_defaults(func=cmd_serve)

@@ -1,0 +1,107 @@
+:root{
+  color-scheme:light dark;
+  --bg:#f3f5fa; --panel:#fff; --fg:#111823; --muted:#5b6a80; --line:#dde3ee;
+  --accent:#1f6feb; --accent-fg:#fff; --ok:#2f6862; --warn:#b8730d; --err:#c62239;
+  --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
+  --radius:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f131a; --panel:#171d27; --fg:#e7ecf4; --muted:#95a1b5; --line:#28313f;
+        --accent:#5b9bff; --shadow:0 1px 3px rgba(0,0,0,.4);}
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,sans-serif}
+a{color:var(--accent)}
+code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* ---------------------------------------------------------------- login */
+.login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(1200px 600px at 50% -10%,rgba(31,111,235,.18),transparent)}
+.login-card{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:28px;box-shadow:var(--shadow)}
+.login-card h1{margin:0 0 4px;font-size:20px}
+.login-card p.sub{margin:0 0 20px;color:var(--muted);font-size:13px}
+
+/* --------------------------------------------------------------- layout */
+.app{display:grid;grid-template-columns:216px 1fr;min-height:100vh}
+@media(max-width:860px){.app{grid-template-columns:1fr}.side{position:static;height:auto}}
+.side{background:var(--panel);border-right:1px solid var(--line);padding:16px 12px;
+  position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:4px}
+.brand{display:flex;align-items:center;gap:9px;padding:6px 8px 16px;font-weight:700;
+  letter-spacing:-.01em;font-size:16px}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.side nav button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  background:none;border:none;color:var(--muted);padding:9px 10px;border-radius:8px;
+  cursor:pointer;font-size:14px}
+.side nav button:hover{background:rgba(127,127,127,.10);color:var(--fg)}
+.side nav button.active{background:var(--accent);color:var(--accent-fg);font-weight:600}
+.side .spacer{flex:1}
+.side .who{border-top:1px solid var(--line);padding-top:12px;font-size:12px;color:var(--muted)}
+main{padding:22px 26px;max-width:1500px;width:100%}
+.view{display:none}.view.active{display:block}
+.head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.head h1{margin:0;font-size:20px}
+.head p{margin:0;color:var(--muted);font-size:13px}
+.head .grow{flex:1}
+
+/* ---------------------------------------------------------------- cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;box-shadow:var(--shadow);margin-bottom:16px}
+.card h2{margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted)}
+.grid{display:grid;gap:14px}
+.grid.k4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.grid.k2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;box-shadow:var(--shadow)}
+.kpi .n{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.split{display:grid;grid-template-columns:minmax(360px,420px) 1fr;gap:16px;align-items:start}
+@media(max-width:1100px){.split{grid-template-columns:1fr}}
+
+/* --------------------------------------------------------------- forms */
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);
+  border-radius:8px;background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:150px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:150px}
+.check{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--fg)}
+.check input{width:auto}
+button.primary{background:var(--accent);color:var(--accent-fg);border:none;border-radius:8px;
+  padding:10px 16px;cursor:pointer;font-size:14px;font-weight:600}
+button.primary:disabled{opacity:.55;cursor:progress}
+button.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:8px 12px;
+  cursor:pointer;color:var(--fg);font-size:13px}
+button.ghost:hover{border-color:var(--accent);color:var(--accent)}
+button.danger{border-color:var(--err);color:var(--err)}
+button.mini{padding:4px 9px;font-size:12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* -------------------------------------------------------------- tables */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(127,127,127,.05)}
+.tablewrap{overflow-x:auto}
+.empty{color:var(--muted);font-size:13px;padding:12px 2px}
+
+/* --------------------------------------------------------------- chips */
+.tag{display:inline-block;background:var(--accent);color:#fff;border-radius:999px;
+  padding:1px 9px;font-size:11px;margin:0 4px 4px 0;white-space:nowrap}
+.tag.ok{background:var(--ok)}.tag.warn{background:var(--warn)}.tag.err{background:var(--err)}
+.tag.mut{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.msg{padding:10px 12px;border-radius:8px;margin-top:12px;font-size:13px;display:none}
+.msg.show{display:block}
+.msg.ok{background:rgba(47,104,98,.14);border:1px solid var(--ok)}
+.msg.err{background:rgba(198,34,57,.12);border:1px solid var(--err)}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+pre{white-space:pre-wrap;font-size:12px;background:rgba(127,127,127,.09);padding:10px;
+  border-radius:8px;max-height:320px;overflow:auto}
+iframe{width:100%;height:74vh;border:1px solid var(--line);border-radius:var(--radius);
+  background:#fff}
+.busy{opacity:.6;pointer-events:none}

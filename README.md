@@ -109,12 +109,38 @@ os uids dos segments criados e o caminho do template salvo.
 ./dtdash serve            # http://127.0.0.1:8080
 ```
 
-A interface cobre o fluxo completo: descrever, gerar previa, revisar, aprovar (ou
-simular/rejeitar), navegar na biblioteca de templates, sincronizar o conhecimento
-e enviar arquivos de exemplo.
+No primeiro acesso o servidor cria o usuario `admin` e imprime a senha no console
+(uma unica vez). Depois:
 
-> Ao expor o servidor fora de `127.0.0.1`, defina `DTDASH_WEB_TOKEN` — o servidor
-> passa a exigir o header `X-Dtdash-Token`.
+```bash
+./dtdash users add joana --role operador     # admin | operador | leitor
+./dtdash users passwd admin
+./dtdash users list
+```
+
+| Tela | O que faz |
+|---|---|
+| **Visao geral** | numeros do ambiente, clientes atendidos e ultimos dashboards publicados |
+| **Clientes / tenants** | cadastro (criar, editar, excluir) e botao "testar" com a matriz de permissoes do Grail |
+| **Solicitar dashboard** | o prompt da necessidade, opcoes de geracao, pre-visualizacao e aprovacao |
+| **Historico** | tudo que ja foi publicado, filtravel por cliente, com link para o dashboard e para a previa |
+| **Biblioteca** | templates genericos e por cliente, com "usar como base" e visualizacao do JSON |
+| **Conhecimento** | sincronizar docs/GitHub e enviar exemplos |
+| **Diagnostico** | o `selftest` do tenant pela interface |
+
+Papeis: `leitor` so consulta; `operador` gera e publica dashboards e cadastra
+clientes; `admin` tambem exclui cadastros.
+
+Seguranca: sessao por cookie `HttpOnly`/`SameSite=Strict` (12h deslizantes), senhas
+com PBKDF2-HMAC-SHA256, cabecalho anti-CSRF em toda escrita e escuta em
+`127.0.0.1` por padrao. Ao expor fora do localhost, use HTTPS por um proxy
+reverso; `DTDASH_WEB_TOKEN` continua disponivel para automacao via header
+`X-Dtdash-Token`.
+
+A **pre-visualizacao** e a mesma pagina HTML gerada pelo `plan`: layout na grade de
+24 colunas, esboco de cada tile conforme o tipo de visualizacao, DQL, segments,
+disponibilidade das metricas e a matriz necessidade x tile. Como e HTML, o proprio
+navegador exporta para PDF/imagem quando voce quiser anexar a previa a um e-mail.
 
 ## 5. Validar contra um tenant real (`selftest`)
 
@@ -151,7 +177,45 @@ e a mesma bateria esta na aba **Diagnostico** da interface web.
 
 Codigo de saida: `0` sem falhas, `2` com falhas — da para usar direto em CI.
 
-## 6. Biblioteca de dashboards
+## 6. Metricas: Grail (`dt.*`) x classico (`builtin:*`)
+
+Na plataforma Grail as metricas nativas foram renomeadas: o prefixo `builtin:`
+virou `dt.` e camelCase virou snake_case
+([docs](https://docs.dynatrace.com/docs/analyze-explore-automate/metrics/built-in-metrics-on-grail)).
+O catalogo do dtdash usa as chaves Grail, mas **quem decide e o tenant**: antes de
+montar os tiles a ferramenta le o indice de metricas e classifica cada chave.
+
+| Situacao | O que o dtdash faz |
+|---|---|
+| a chave `dt.*` existe | usa como esta |
+| so existe a equivalente `builtin:*` | reescreve a DQL com a chave classica entre crases |
+| nao existe nenhuma das duas | marca o tile como indisponivel e, por padrao, **remove** (`--on-missing keep` mantem) |
+| nao foi possivel verificar (sem permissao, indice vazio, offline) | mantem o tile e avisa - nunca conclui que a metrica nao existe |
+
+Isso evita publicar dashboard com tile vazio e faz o mesmo pedido funcionar tanto
+em tenant Gen3/DPS quanto em tenant com metricas classicas.
+
+### Permissoes do Grail
+
+Um `403 NOT_AUTHORIZED_FOR_TABLE` significa que falta a permissao de leitura
+**daquela tabela** — nao que a metrica ou o dado nao exista. O dtdash sonda cada
+tabela e diz qual permissao conceder:
+
+```bash
+./dtdash tenants test acme
+
+TABELA               STATUS    PERMISSAO                        DETALHE
+logs                 ok        storage:logs:read                1 registro lido
+metrics              denied    storage:metrics:read             sem permissao de leitura
+smartscape           denied    storage:smartscape:read          sem permissao de leitura
+
+permissoes a conceder: storage:metrics:read, storage:smartscape:read
+```
+
+A mesma matriz aparece na previa do dashboard, no `selftest` (`grail.tables`) e na
+aba Diagnostico da interface web.
+
+## 7. Biblioteca de dashboards
 
 ```
 dashboards/
@@ -172,7 +236,7 @@ publicacao — pronto para reuso:
 ./dtdash templates save --scope library     # promove um template para a biblioteca generica
 ```
 
-## 7. Comandos
+## 8. Comandos
 
 | Comando | Para que serve |
 |---|---|
@@ -192,10 +256,10 @@ publicacao — pronto para reuso:
 | `dtdash doctor` | diagnostico do ambiente |
 
 Opcoes uteis de `plan`: `--audience exec|sre|dev|finops`, `--segment-mode
-tile|dql|both`, `--max-tiles N`, `--base <template>`, `--offline`,
-`--validate-live`, `--domain <dominio>`.
+tile|dql|both`, `--on-missing drop|keep`, `--max-tiles N`, `--base <template>`,
+`--offline`, `--validate-live`, `--domain <dominio>`.
 
-## 8. Como o planejamento funciona
+## 9. Como o planejamento funciona
 
 1. **Leitura da necessidade** — separa requisitos, detecta dominios (servicos,
    Kubernetes, logs, problemas, RUM, banco, seguranca, negocio, DPS...), audiencia,
@@ -210,14 +274,14 @@ tile|dql|both`, `--max-tiles N`, `--base <template>`, `--offline`,
 4. **Segments e variaveis** — filtros com valor concreto viram *filter-segments*;
    dimensoes citadas sem valor viram variaveis de dashboard. Filtros so sao
    injetados onde o campo realmente existe.
-5. **Verificacao** — chaves de metrica sao conferidas no tenant (`metrics | filter
-   in(metric.key, {...})`), a DQL passa por lint e, com `--validate-live`, por
-   `query:verify` + execucao com `limit`.
+5. **Verificacao** — o indice de metricas do tenant e lido uma vez e cada chave e
+   resolvida (Grail, classica ou ausente); a DQL passa por lint e, com
+   `--validate-live`, por `query:verify` + execucao com `limit`.
 6. **Previa** — HTML com layout, DQL por tile, segments, variaveis, apontamentos de
    validacao, fontes consultadas e a **matriz de cobertura** (cada necessidade
    declarada x tiles que a respondem).
 
-## 9. Desenvolvimento
+## 10. Desenvolvimento
 
 ```bash
 python3 -m unittest discover -s tests -t .

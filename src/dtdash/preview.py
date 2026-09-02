@@ -2,6 +2,7 @@
 
 import html
 import json
+import re
 import time
 
 from .builder import GRID_COLUMNS, build_dashboard
@@ -20,6 +21,45 @@ _SPARK = "M0,26 L14,18 L28,22 L42,10 L56,15 L70,6 L84,12 L98,4"
 
 def _esc(value):
     return html.escape(str(value if value is not None else ""))
+
+
+def render_markdown(text):
+    """Markdown minimo (titulos, negrito, italico, listas) para a previa."""
+
+    out = []
+    in_list = False
+    for raw in (text or "").splitlines():
+        line = _esc(raw.rstrip())
+        stripped = line.strip()
+        if stripped.startswith("- ") or stripped.startswith("* "):
+            if not in_list:
+                out.append("<ul>")
+                in_list = True
+            out.append("<li>%s</li>" % _inline_md(stripped[2:]))
+            continue
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+        if not stripped:
+            out.append("<br>")
+        elif stripped.startswith("### "):
+            out.append("<h3>%s</h3>" % _inline_md(stripped[4:]))
+        elif stripped.startswith("## "):
+            out.append("<h2 class=\"mdh\">%s</h2>" % _inline_md(stripped[3:]))
+        elif stripped.startswith("# "):
+            out.append("<h1 class=\"mdh\">%s</h1>" % _inline_md(stripped[2:]))
+        else:
+            out.append("<p>%s</p>" % _inline_md(stripped))
+    if in_list:
+        out.append("</ul>")
+    return "".join(out)
+
+
+def _inline_md(text):
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"<em>\1</em>", text)
+    text = re.sub(r"`(.+?)`", r"<code>\1</code>", text)
+    return text
 
 
 def _viz_sketch(viz):
@@ -70,16 +110,23 @@ def render_html(spec, report=None, document=None, deployment=None):
             continue
         span = int(layout["w"])
         if tile.kind == "markdown":
-            body = _esc(tile.markdown or "").replace("\n", "<br>")
             cards.append(
-                '<div class="tile md" style="grid-column: span %d">%s</div>' % (span, body)
+                '<div class="tile md" style="grid-column: span %d">%s</div>'
+                % (span, render_markdown(tile.markdown))
             )
             continue
         answers = ", ".join(tile.answers) or "-"
         notes = ""
-        if tile.unverified_metrics:
+        if tile.availability == "missing":
+            notes = ('<div class="warn">metrica inexistente no tenant: %s</div>'
+                     % _esc(", ".join(tile.unverified_metrics)))
+        elif tile.unverified_metrics:
             notes = ('<div class="warn">metricas a verificar: %s</div>'
                      % _esc(", ".join(tile.unverified_metrics)))
+        for resolution in tile.metric_resolutions or []:
+            if resolution.get("status") == "alias":
+                notes += ('<div class="meta">chave classica: %s -> %s</div>'
+                          % (_esc(resolution.get("key")), _esc(resolution.get("resolved"))))
         segments = ""
         if tile.segments:
             segments = '<div class="chiprow">%s</div>' % "".join(
@@ -184,6 +231,34 @@ def render_html(spec, report=None, document=None, deployment=None):
             )
         )
 
+    capabilities = spec.capabilities or {}
+    denied = capabilities.get("deniedTables") or []
+    permission_rows = []
+    for table, info in sorted((capabilities.get("tables") or {}).items()):
+        status = info.get("status", "?")
+        permission_rows.append(
+            '<tr class="%s"><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>'
+            % ("warning" if status == "denied" else "", _esc(table), _esc(status),
+               _esc(info.get("permission", "")), _esc(info.get("detail", "")))
+        )
+
+    summary = spec.metrics_summary or {}
+    counts = summary.get("counts") or {}
+    if summary.get("available") is True:
+        metrics_line = ("indice do tenant lido (%s chaves): %s ok, %s com chave classica, "
+                        "%s ausentes" % (summary.get("indexSize", "?"), counts.get("ok", 0),
+                                         counts.get("alias", 0), counts.get("missing", 0)))
+    elif summary:
+        metrics_line = "nao verificado: %s" % (summary.get("reason") or "-")
+    else:
+        metrics_line = "sem metricas no dashboard"
+
+    dropped_rows = [
+        "<tr><td>%s</td><td>%s</td></tr>"
+        % (_esc(entry.get("title")), _esc(", ".join(entry.get("metrics") or [])))
+        for entry in spec.dropped_tiles or []
+    ]
+
     return TEMPLATE % {
         "title": _esc(spec.name),
         "description": _esc(spec.description),
@@ -204,6 +279,12 @@ def render_html(spec, report=None, document=None, deployment=None):
         "knowledge": "".join(knowledge_rows) or '<tr><td colspan="3">-</td></tr>',
         "warnings": warnings_html or "<li>-</li>",
         "deployment": deployment_html,
+        "metricsline": _esc(metrics_line),
+        "permissions": "".join(permission_rows) or '<tr><td colspan="4">nao sondado</td></tr>',
+        "dropped": "".join(dropped_rows) or '<tr><td colspan="2">nenhum</td></tr>',
+        "deniedbanner": ('<p class="warn">Tabelas sem permissao de leitura: %s. Os tiles que '
+                         'dependem delas ficarao vazios ate que a permissao seja concedida.</p>'
+                         % _esc(", ".join(denied))) if denied else "",
         "json": _esc(json.dumps(document, ensure_ascii=False, indent=2)),
     }
 
@@ -257,6 +338,27 @@ def render_text(spec, report=None):
         lines.append("  - [%s] %s" % (tile.visualization, tile.title))
         first_line = (tile.query or "").splitlines()[0] if tile.query else ""
         lines.append("      %s" % first_line[:100])
+    capabilities = spec.capabilities or {}
+    if capabilities.get("deniedTables"):
+        lines.append("")
+        lines.append("PERMISSOES FALTANDO")
+        lines.append("  tabelas negadas: %s" % ", ".join(capabilities["deniedTables"]))
+        lines.append("  conceda: %s" % ", ".join(capabilities.get("missingPermissions") or []))
+    summary = spec.metrics_summary or {}
+    if summary:
+        counts = summary.get("counts") or {}
+        lines.append("")
+        if summary.get("available") is True:
+            lines.append("METRICAS: %d ok, %d com chave classica, %d ausentes (indice com %s chaves)"
+                         % (counts.get("ok", 0), counts.get("alias", 0),
+                            counts.get("missing", 0), summary.get("indexSize", "?")))
+        else:
+            lines.append("METRICAS: nao verificadas (%s)" % (summary.get("reason") or "-"))
+    if spec.dropped_tiles:
+        lines.append("TILES REMOVIDOS (metrica inexistente):")
+        for entry in spec.dropped_tiles:
+            lines.append("  - %s [%s]" % (entry.get("title"),
+                                          ", ".join(entry.get("metrics") or [])))
     if report is not None:
         lines.append("")
         lines.append("VALIDACAO: %d erro(s), %d aviso(s)"
@@ -264,6 +366,9 @@ def render_text(spec, report=None):
         for finding in report.findings[:20]:
             lines.append("  %-7s %-4s %s" % (finding.level, finding.tile or "-",
                                              finding.message[:100]))
+        if len(report.findings) > 20:
+            lines.append("  ... e mais %d apontamento(s) - veja a previa HTML"
+                         % (len(report.findings) - 20))
     if spec.warnings:
         lines.append("")
         lines.append("OBSERVACOES")
@@ -296,8 +401,14 @@ border-bottom:1px solid var(--line);padding-bottom:6px}
 .grid{display:grid;grid-template-columns:repeat(%(columns)d,1fr);gap:10px}
 .tile{grid-column:span 12;background:var(--card);border:1px solid var(--line);
 border-radius:10px;padding:12px;min-height:96px}
-.tile.md{background:transparent;border:none;padding:4px 2px;min-height:0}
-.tile.md br+br{line-height:.4}
+.tile.md{background:transparent;border:none;padding:2px;min-height:0}
+.tile.md p{margin:2px 0}
+.tile.md ul{margin:4px 0 4px 4px}
+.tile.md h1.mdh{font-size:19px;margin:2px 0 6px}
+.tile.md h2.mdh{font-size:14px;margin:10px 0 2px;text-transform:uppercase;
+letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:4px}
+.tile.md h3{font-size:13px;margin:6px 0 2px}
+.tile.md br{line-height:.5}
 .thead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .chip{background:var(--accent);color:#fff;border-radius:999px;padding:1px 9px;font-size:11px;
 white-space:nowrap}
@@ -348,6 +459,15 @@ ul{margin:0;padding-left:18px}
 <section><h2>Variaveis</h2>
 <table><tr><th>Chave</th><th>Tipo</th><th>Selecao</th><th>Origem</th></tr>
 %(variables)s</table></section>
+
+<section><h2>Disponibilidade dos dados</h2>
+%(deniedbanner)s
+<p><strong>Metricas:</strong> %(metricsline)s</p>
+<table><tr><th>Tabela Grail</th><th>Status</th><th>Permissao</th><th>Detalhe</th></tr>
+%(permissions)s</table>
+<p style="margin-top:12px"><strong>Tiles removidos por metrica inexistente</strong></p>
+<table><tr><th>Tile</th><th>Metricas</th></tr>%(dropped)s</table>
+</section>
 
 <section><h2>Validacao</h2>
 <table><tr><th>Nivel</th><th>Tile</th><th>Mensagem</th></tr>%(findings)s</table></section>

@@ -11,6 +11,7 @@ import unicodedata
 
 from . import catalog
 from .capabilities import TenantCapabilities
+from .metrics import ALIAS, MISSING, OK, UNKNOWN, MetricCatalogView, rewrite_query
 from .dqlutil import equals, inject_filters, variable_filter
 from .spec import (
     DashboardSpec,
@@ -74,9 +75,11 @@ DOMAIN_KEYWORDS = {
         "carrinho", "kpi de negocio",
     ],
     "dps": [
-        "dps", "consumo", "custo", "custos", "billing", "faturamento", "licenca",
-        "licencas", "finops", "chargeback", "showback", "gasto", "capacidade contratada",
-        "cost center", "centro de custo",
+        "dps", "custo", "custos", "billing", "faturamento", "licenca", "licencas",
+        "finops", "chargeback", "showback", "gasto", "gastos", "orcamento",
+        "capacidade contratada", "cost center", "centro de custo",
+        "consumo da plataforma", "consumo dps", "consumo de dados", "consumo de licenca",
+        "custo de query", "custo de consulta", "ingestao",
     ],
 }
 
@@ -330,7 +333,8 @@ class Planner(object):
 
     # -------------------------------------------------------------- plano
     def plan(self, text, name=None, tenant="", client_name="", segment_mode="tile",
-             max_tiles=None, audience=None, base_spec=None, extra_domains=None):
+             max_tiles=None, audience=None, base_spec=None, extra_domains=None,
+             on_missing="drop"):
         analysis = self.analyze(text)
         if audience:
             analysis.audience = audience
@@ -387,8 +391,8 @@ class Planner(object):
         # 5. cobertura dos requisitos
         self._map_coverage(spec, analysis)
 
-        # 6. verificacao de metricas contra o tenant
-        self._verify_metrics(spec)
+        # 6. resolucao das metricas contra o indice do tenant
+        self._resolve_metrics(spec, on_missing=on_missing)
 
         # 7. conhecimento consultado
         spec.knowledge_sources = self._knowledge_sources(text, domains)
@@ -655,7 +659,7 @@ class Planner(object):
                 tiles.append(clone)
 
         sections_seen = set()
-        ordered = sorted(blueprints, key=lambda bp: (bp.section, -bp.priority))
+        ordered = sorted(blueprints, key=lambda bp: (self._section_rank(bp, spec), -bp.priority))
         for bp in ordered:
             if bp.section and bp.section not in sections_seen:
                 sections_seen.add(bp.section)
@@ -668,6 +672,18 @@ class Planner(object):
                 )
             tiles.append(self._tile_from_blueprint(bp, next_id(), analysis, spec, variables))
         return tiles
+
+    def _section_rank(self, blueprint, spec):
+        """Resumo executivo primeiro, DPS por ultimo, o resto na ordem dos dominios."""
+
+        if blueprint.section == "Resumo executivo":
+            return -1
+        if blueprint.domain == "dps":
+            return 900
+        try:
+            return spec.domains.index(blueprint.domain)
+        except ValueError:
+            return 500
 
     def _tile_from_blueprint(self, bp, tile_id, analysis, spec, variables):
         query = bp.query
@@ -791,43 +807,129 @@ class Planner(object):
             )
 
     # ------------------------------------------------------------- metricas
-    def _verify_metrics(self, spec):
+    def _resolve_metrics(self, spec, on_missing="drop"):
+        """Confere cada chave de metrica no tenant e ajusta os tiles.
+
+        * chave existe -> nada a fazer
+        * so existe a equivalente classica (builtin:) -> reescreve a DQL
+        * comprovadamente ausente -> tile marcado e, por padrao, removido
+        * impossivel verificar (sem permissao/offline) -> tile mantido e sinalizado
+        """
+
         keys = set()
         for tile in spec.tiles:
-            bp = catalog.CATALOG_BY_ID.get(tile.blueprint)
-            if bp:
-                keys.update(bp.metrics)
+            blueprint = catalog.CATALOG_BY_ID.get(tile.blueprint)
+            if blueprint:
+                keys.update(blueprint.metrics)
         if not keys:
             return
-        if not (self.client and self.capabilities.online):
+
+        view = MetricCatalogView.load(
+            self.client if self.capabilities.online else None, self.capabilities
+        )
+        resolutions = view.resolve_all(keys)
+        spec.metrics_summary = view.summary(resolutions)
+        spec.metrics_summary["resolutions"] = {
+            key: resolution.to_dict() for key, resolution in sorted(resolutions.items())
+        }
+
+        if view.available is not True:
             for tile in spec.tiles:
-                bp = catalog.CATALOG_BY_ID.get(tile.blueprint)
-                if bp and bp.metrics:
-                    tile.unverified_metrics = list(bp.metrics)
-            if keys:
-                spec.warnings.append(
-                    "Metricas nao verificadas contra o tenant (execucao offline): %d chaves."
-                    % len(keys)
-                )
+                blueprint = catalog.CATALOG_BY_ID.get(tile.blueprint)
+                if blueprint and blueprint.metrics:
+                    tile.unverified_metrics = list(blueprint.metrics)
+                    tile.availability = "unverified"
+            spec.warnings.append(
+                "Metricas nao verificadas: %s. Os tiles foram mantidos - confirme os "
+                "graficos apos a publicacao." % (view.reason or "motivo desconhecido")
+            )
             return
 
-        listed = ", ".join('"%s"' % k for k in sorted(keys))
-        query = "metrics\n| filter in(metric.key, {%s})\n| fields metric.key" % listed
-        try:
-            result = self.client.execute_query(query, max_records=500)
-            found = {r.get("metric.key") for r in result.get("records") or []}
-        except Exception as exc:  # noqa: BLE001 - verificacao e best-effort
-            spec.warnings.append("Nao foi possivel verificar metricas: %s" % exc)
-            return
-        missing = sorted(keys - found)
-        if missing:
-            spec.warnings.append(
-                "Metricas nao encontradas no tenant: %s" % ", ".join(missing)
-            )
+        aliased, missing_tiles = [], []
         for tile in spec.tiles:
-            bp = catalog.CATALOG_BY_ID.get(tile.blueprint)
-            if bp:
-                tile.unverified_metrics = [m for m in bp.metrics if m in missing]
+            blueprint = catalog.CATALOG_BY_ID.get(tile.blueprint)
+            if not blueprint or not blueprint.metrics:
+                continue
+            tile_resolutions = {k: resolutions[k] for k in blueprint.metrics if k in resolutions}
+            tile.metric_resolutions = [r.to_dict() for r in tile_resolutions.values()
+                                       if r.status != OK]
+            ausentes = [k for k, r in tile_resolutions.items() if r.status == MISSING]
+            trocadas = [(k, r.resolved) for k, r in tile_resolutions.items() if r.status == ALIAS]
+            if trocadas:
+                tile.query = rewrite_query(tile.query, tile_resolutions)
+                tile.notes.append(
+                    "chave(s) classica(s) usada(s): %s"
+                    % ", ".join("%s -> %s" % (k, v) for k, v in trocadas)
+                )
+                aliased.extend(k for k, _ in trocadas)
+            if ausentes:
+                tile.availability = "missing"
+                tile.unverified_metrics = ausentes
+                missing_tiles.append(tile)
+
+        if aliased:
+            spec.warnings.append(
+                "Tenant sem as metricas Grail correspondentes; o dtdash usou as chaves "
+                "classicas equivalentes em %d tile(s): %s"
+                % (len({t.tile_id for t in spec.tiles if t.notes and any(
+                    n.startswith("chave(s) classica") for n in t.notes)}),
+                   ", ".join(sorted(set(aliased))[:6]))
+            )
+
+        if missing_tiles:
+            self._apply_missing_policy(spec, missing_tiles, resolutions, on_missing)
+
+    def _apply_missing_policy(self, spec, missing_tiles, resolutions, on_missing):
+        detalhes = []
+        for tile in missing_tiles:
+            faltantes = []
+            for key in tile.unverified_metrics:
+                resolution = resolutions.get(key)
+                sugestao = ""
+                if resolution and resolution.suggestions:
+                    sugestao = " (parecidas no tenant: %s)" % ", ".join(resolution.suggestions)
+                faltantes.append("%s%s" % (key, sugestao))
+            detalhes.append("%s [%s]" % (tile.title, "; ".join(faltantes)))
+
+        if on_missing == "keep":
+            spec.warnings.append(
+                "%d tile(s) mantidos apesar de a metrica nao existir no tenant "
+                "(--on-missing keep): %s" % (len(missing_tiles), " | ".join(detalhes))
+            )
+            return
+
+        removidos = {tile.tile_id for tile in missing_tiles}
+        spec.dropped_tiles = [
+            {"id": tile.tile_id, "title": tile.title, "blueprint": tile.blueprint,
+             "metrics": list(tile.unverified_metrics)}
+            for tile in missing_tiles
+        ]
+        spec.tiles = [tile for tile in spec.tiles if tile.tile_id not in removidos]
+        self._drop_empty_sections(spec)
+        spec.warnings.append(
+            "%d tile(s) removidos por dependerem de metricas inexistentes no tenant "
+            "(use --on-missing keep para manter): %s"
+            % (len(missing_tiles), " | ".join(detalhes))
+        )
+
+    def _drop_empty_sections(self, spec):
+        """Remove cabecalhos de secao que ficaram sem tiles de dados."""
+
+        mantidos = []
+        for index, tile in enumerate(spec.tiles):
+            if tile.kind != "markdown" or not (tile.markdown or "").startswith("## "):
+                mantidos.append(tile)
+                continue
+            tem_dados = False
+            for seguinte in spec.tiles[index + 1:]:
+                if seguinte.kind == "markdown" and (seguinte.markdown or "").startswith("## "):
+                    break
+                if seguinte.kind == "data":
+                    tem_dados = True
+                    break
+            if tem_dados:
+                mantidos.append(tile)
+        spec.tiles = mantidos
 
     # ---------------------------------------------------------- conhecimento
     def _knowledge_sources(self, text, domains):
