@@ -151,7 +151,45 @@ e a mesma bateria esta na aba **Diagnostico** da interface web.
 
 Codigo de saida: `0` sem falhas, `2` com falhas — da para usar direto em CI.
 
-## 6. Biblioteca de dashboards
+## 6. Metricas: Grail (`dt.*`) x classico (`builtin:*`)
+
+Na plataforma Grail as metricas nativas foram renomeadas: o prefixo `builtin:`
+virou `dt.` e camelCase virou snake_case
+([docs](https://docs.dynatrace.com/docs/analyze-explore-automate/metrics/built-in-metrics-on-grail)).
+O catalogo do dtdash usa as chaves Grail, mas **quem decide e o tenant**: antes de
+montar os tiles a ferramenta le o indice de metricas e classifica cada chave.
+
+| Situacao | O que o dtdash faz |
+|---|---|
+| a chave `dt.*` existe | usa como esta |
+| so existe a equivalente `builtin:*` | reescreve a DQL com a chave classica entre crases |
+| nao existe nenhuma das duas | marca o tile como indisponivel e, por padrao, **remove** (`--on-missing keep` mantem) |
+| nao foi possivel verificar (sem permissao, indice vazio, offline) | mantem o tile e avisa - nunca conclui que a metrica nao existe |
+
+Isso evita publicar dashboard com tile vazio e faz o mesmo pedido funcionar tanto
+em tenant Gen3/DPS quanto em tenant com metricas classicas.
+
+### Permissoes do Grail
+
+Um `403 NOT_AUTHORIZED_FOR_TABLE` significa que falta a permissao de leitura
+**daquela tabela** — nao que a metrica ou o dado nao exista. O dtdash sonda cada
+tabela e diz qual permissao conceder:
+
+```bash
+./dtdash tenants test acme
+
+TABELA               STATUS    PERMISSAO                        DETALHE
+logs                 ok        storage:logs:read                1 registro lido
+metrics              denied    storage:metrics:read             sem permissao de leitura
+smartscape           denied    storage:smartscape:read          sem permissao de leitura
+
+permissoes a conceder: storage:metrics:read, storage:smartscape:read
+```
+
+A mesma matriz aparece na previa do dashboard, no `selftest` (`grail.tables`) e na
+aba Diagnostico da interface web.
+
+## 7. Biblioteca de dashboards
 
 ```
 dashboards/
@@ -172,7 +210,7 @@ publicacao — pronto para reuso:
 ./dtdash templates save --scope library     # promove um template para a biblioteca generica
 ```
 
-## 7. Comandos
+## 8. Comandos
 
 | Comando | Para que serve |
 |---|---|
@@ -192,10 +230,10 @@ publicacao — pronto para reuso:
 | `dtdash doctor` | diagnostico do ambiente |
 
 Opcoes uteis de `plan`: `--audience exec|sre|dev|finops`, `--segment-mode
-tile|dql|both`, `--max-tiles N`, `--base <template>`, `--offline`,
-`--validate-live`, `--domain <dominio>`.
+tile|dql|both`, `--on-missing drop|keep`, `--max-tiles N`, `--base <template>`,
+`--offline`, `--validate-live`, `--domain <dominio>`.
 
-## 8. Como o planejamento funciona
+## 9. Como o planejamento funciona
 
 1. **Leitura da necessidade** — separa requisitos, detecta dominios (servicos,
    Kubernetes, logs, problemas, RUM, banco, seguranca, negocio, DPS...), audiencia,
@@ -210,14 +248,14 @@ tile|dql|both`, `--max-tiles N`, `--base <template>`, `--offline`,
 4. **Segments e variaveis** — filtros com valor concreto viram *filter-segments*;
    dimensoes citadas sem valor viram variaveis de dashboard. Filtros so sao
    injetados onde o campo realmente existe.
-5. **Verificacao** — chaves de metrica sao conferidas no tenant (`metrics | filter
-   in(metric.key, {...})`), a DQL passa por lint e, com `--validate-live`, por
-   `query:verify` + execucao com `limit`.
+5. **Verificacao** — o indice de metricas do tenant e lido uma vez e cada chave e
+   resolvida (Grail, classica ou ausente); a DQL passa por lint e, com
+   `--validate-live`, por `query:verify` + execucao com `limit`.
 6. **Previa** — HTML com layout, DQL por tile, segments, variaveis, apontamentos de
    validacao, fontes consultadas e a **matriz de cobertura** (cada necessidade
    declarada x tiles que a respondem).
 
-## 9. Desenvolvimento
+## 10. Desenvolvimento
 
 ```bash
 python3 -m unittest discover -s tests -t .

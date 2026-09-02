@@ -135,6 +135,16 @@ def cmd_tenants(args):
         _out("data objects ...: %d" % len(caps.data_objects))
         if caps.dps_event_types:
             _out("consumo DPS ....: %s" % ", ".join(caps.dps_event_types[:6]))
+        if caps.tables:
+            _out("")
+            _out("%-20s %-9s %-32s %s" % ("TABELA", "STATUS", "PERMISSAO", "DETALHE"))
+            for table, info in sorted(caps.tables.items()):
+                _out("%-20s %-9s %-32s %s"
+                     % (table, info.get("status", "?"), info.get("permission", ""),
+                        (info.get("detail") or "")[:40]))
+            if caps.missing_permissions():
+                _out("")
+                _out("permissoes a conceder: %s" % ", ".join(caps.missing_permissions()))
         for error in caps.errors:
             _err("erro: %s" % error)
         return EXIT_OK if caps.online else EXIT_ERROR
@@ -197,6 +207,7 @@ def cmd_plan(args):
         validate_live=args.validate_live,
         client_name=args.client,
         extra_domains=args.domain or None,
+        on_missing=args.on_missing,
     )
     proposal = outcome["proposal"]
     report = outcome["report"]
@@ -472,6 +483,9 @@ def build_parser():
     plan.add_argument("--max-tiles", type=int)
     plan.add_argument("--base", help="template base (ref ou nome)")
     plan.add_argument("--domain", action="append", help="forca um dominio adicional")
+    plan.add_argument("--on-missing", choices=["drop", "keep"], default="drop",
+                      help="o que fazer com tiles cuja metrica nao existe no tenant "
+                           "(padrao: remover)")
     plan.add_argument("--offline", action="store_true", help="nao consulta o tenant")
     plan.add_argument("--validate-live", action="store_true",
                       help="valida as DQL executando no tenant")

@@ -126,11 +126,12 @@ class DynatraceClient(object):
 
     def _expect(self, response, action):
         if not response.ok:
+            payload = response.json()
             raise ApiError(
                 "%s falhou: %s" % (action, _error_message(response)),
                 status=response.status,
                 url=response.url,
-                payload=response.json(),
+                payload=payload,
             )
         return response
 

@@ -235,6 +235,7 @@ class DtDashHandler(BaseHTTPRequestHandler):
             probe=not body.get("offline"),
             validate_live=bool(body.get("validateLive")),
             client_name=body.get("client") or None,
+            on_missing=body.get("onMissing") or "drop",
         )
         spec = outcome["spec"]
         report = outcome["report"]
@@ -262,6 +263,7 @@ class DtDashHandler(BaseHTTPRequestHandler):
             force=bool(body.get("force")),
             dry_run=bool(body.get("dryRun")),
             client_name=body.get("client") or None,
+            on_missing=body.get("onMissing") or "drop",
         )
         result = outcome["result"].to_dict()
         result["proposalId"] = outcome["proposal"].proposal_id

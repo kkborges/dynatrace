@@ -77,9 +77,16 @@ def render_html(spec, report=None, document=None, deployment=None):
             continue
         answers = ", ".join(tile.answers) or "-"
         notes = ""
-        if tile.unverified_metrics:
+        if tile.availability == "missing":
+            notes = ('<div class="warn">metrica inexistente no tenant: %s</div>'
+                     % _esc(", ".join(tile.unverified_metrics)))
+        elif tile.unverified_metrics:
             notes = ('<div class="warn">metricas a verificar: %s</div>'
                      % _esc(", ".join(tile.unverified_metrics)))
+        for resolution in tile.metric_resolutions or []:
+            if resolution.get("status") == "alias":
+                notes += ('<div class="meta">chave classica: %s -> %s</div>'
+                          % (_esc(resolution.get("key")), _esc(resolution.get("resolved"))))
         segments = ""
         if tile.segments:
             segments = '<div class="chiprow">%s</div>' % "".join(
@@ -184,6 +191,34 @@ def render_html(spec, report=None, document=None, deployment=None):
             )
         )
 
+    capabilities = spec.capabilities or {}
+    denied = capabilities.get("deniedTables") or []
+    permission_rows = []
+    for table, info in sorted((capabilities.get("tables") or {}).items()):
+        status = info.get("status", "?")
+        permission_rows.append(
+            '<tr class="%s"><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>'
+            % ("warning" if status == "denied" else "", _esc(table), _esc(status),
+               _esc(info.get("permission", "")), _esc(info.get("detail", "")))
+        )
+
+    summary = spec.metrics_summary or {}
+    counts = summary.get("counts") or {}
+    if summary.get("available") is True:
+        metrics_line = ("indice do tenant lido (%s chaves): %s ok, %s com chave classica, "
+                        "%s ausentes" % (summary.get("indexSize", "?"), counts.get("ok", 0),
+                                         counts.get("alias", 0), counts.get("missing", 0)))
+    elif summary:
+        metrics_line = "nao verificado: %s" % (summary.get("reason") or "-")
+    else:
+        metrics_line = "sem metricas no dashboard"
+
+    dropped_rows = [
+        "<tr><td>%s</td><td>%s</td></tr>"
+        % (_esc(entry.get("title")), _esc(", ".join(entry.get("metrics") or [])))
+        for entry in spec.dropped_tiles or []
+    ]
+
     return TEMPLATE % {
         "title": _esc(spec.name),
         "description": _esc(spec.description),
@@ -204,6 +239,12 @@ def render_html(spec, report=None, document=None, deployment=None):
         "knowledge": "".join(knowledge_rows) or '<tr><td colspan="3">-</td></tr>',
         "warnings": warnings_html or "<li>-</li>",
         "deployment": deployment_html,
+        "metricsline": _esc(metrics_line),
+        "permissions": "".join(permission_rows) or '<tr><td colspan="4">nao sondado</td></tr>',
+        "dropped": "".join(dropped_rows) or '<tr><td colspan="2">nenhum</td></tr>',
+        "deniedbanner": ('<p class="warn">Tabelas sem permissao de leitura: %s. Os tiles que '
+                         'dependem delas ficarao vazios ate que a permissao seja concedida.</p>'
+                         % _esc(", ".join(denied))) if denied else "",
         "json": _esc(json.dumps(document, ensure_ascii=False, indent=2)),
     }
 
@@ -257,6 +298,27 @@ def render_text(spec, report=None):
         lines.append("  - [%s] %s" % (tile.visualization, tile.title))
         first_line = (tile.query or "").splitlines()[0] if tile.query else ""
         lines.append("      %s" % first_line[:100])
+    capabilities = spec.capabilities or {}
+    if capabilities.get("deniedTables"):
+        lines.append("")
+        lines.append("PERMISSOES FALTANDO")
+        lines.append("  tabelas negadas: %s" % ", ".join(capabilities["deniedTables"]))
+        lines.append("  conceda: %s" % ", ".join(capabilities.get("missingPermissions") or []))
+    summary = spec.metrics_summary or {}
+    if summary:
+        counts = summary.get("counts") or {}
+        lines.append("")
+        if summary.get("available") is True:
+            lines.append("METRICAS: %d ok, %d com chave classica, %d ausentes (indice com %s chaves)"
+                         % (counts.get("ok", 0), counts.get("alias", 0),
+                            counts.get("missing", 0), summary.get("indexSize", "?")))
+        else:
+            lines.append("METRICAS: nao verificadas (%s)" % (summary.get("reason") or "-"))
+    if spec.dropped_tiles:
+        lines.append("TILES REMOVIDOS (metrica inexistente):")
+        for entry in spec.dropped_tiles:
+            lines.append("  - %s [%s]" % (entry.get("title"),
+                                          ", ".join(entry.get("metrics") or [])))
     if report is not None:
         lines.append("")
         lines.append("VALIDACAO: %d erro(s), %d aviso(s)"
@@ -264,6 +326,9 @@ def render_text(spec, report=None):
         for finding in report.findings[:20]:
             lines.append("  %-7s %-4s %s" % (finding.level, finding.tile or "-",
                                              finding.message[:100]))
+        if len(report.findings) > 20:
+            lines.append("  ... e mais %d apontamento(s) - veja a previa HTML"
+                         % (len(report.findings) - 20))
     if spec.warnings:
         lines.append("")
         lines.append("OBSERVACOES")
@@ -348,6 +413,15 @@ ul{margin:0;padding-left:18px}
 <section><h2>Variaveis</h2>
 <table><tr><th>Chave</th><th>Tipo</th><th>Selecao</th><th>Origem</th></tr>
 %(variables)s</table></section>
+
+<section><h2>Disponibilidade dos dados</h2>
+%(deniedbanner)s
+<p><strong>Metricas:</strong> %(metricsline)s</p>
+<table><tr><th>Tabela Grail</th><th>Status</th><th>Permissao</th><th>Detalhe</th></tr>
+%(permissions)s</table>
+<p style="margin-top:12px"><strong>Tiles removidos por metrica inexistente</strong></p>
+<table><tr><th>Tile</th><th>Metricas</th></tr>%(dropped)s</table>
+</section>
 
 <section><h2>Validacao</h2>
 <table><tr><th>Nivel</th><th>Tile</th><th>Mensagem</th></tr>%(findings)s</table></section>

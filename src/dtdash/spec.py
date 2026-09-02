@@ -161,6 +161,8 @@ class TileSpec:
     segments: list = field(default_factory=list)     # uids de segment
     notes: list = field(default_factory=list)
     unverified_metrics: list = field(default_factory=list)
+    availability: str = "ok"                # ok | unverified | missing
+    metric_resolutions: list = field(default_factory=list)
 
     def to_dict(self):
         return {
@@ -183,6 +185,8 @@ class TileSpec:
             "segments": self.segments,
             "notes": self.notes,
             "unverifiedMetrics": self.unverified_metrics,
+            "availability": self.availability,
+            "metricResolutions": self.metric_resolutions,
         }
 
     @classmethod
@@ -207,6 +211,8 @@ class TileSpec:
             segments=data.get("segments") or [],
             notes=data.get("notes") or [],
             unverified_metrics=data.get("unverifiedMetrics") or [],
+            availability=data.get("availability") or "ok",
+            metric_resolutions=data.get("metricResolutions") or [],
         )
 
 
@@ -228,6 +234,8 @@ class DashboardSpec:
     client_name: str = ""
     capabilities: dict = field(default_factory=dict)
     segment_mode: str = "tile"                         # tile | dql | both
+    metrics_summary: dict = field(default_factory=dict)
+    dropped_tiles: list = field(default_factory=list)
     default_timeframe: str = ""                        # ex.: "now()-24h" (opcional)
     refresh_rate: str = ""
 
@@ -270,6 +278,8 @@ class DashboardSpec:
             "clientName": self.client_name,
             "capabilities": self.capabilities,
             "segmentMode": self.segment_mode,
+            "metricsSummary": self.metrics_summary,
+            "droppedTiles": self.dropped_tiles,
             "defaultTimeframe": self.default_timeframe,
             "refreshRate": self.refresh_rate,
         }
@@ -293,6 +303,8 @@ class DashboardSpec:
             client_name=data.get("clientName") or "",
             capabilities=data.get("capabilities") or {},
             segment_mode=data.get("segmentMode") or "tile",
+            metrics_summary=data.get("metricsSummary") or {},
+            dropped_tiles=data.get("droppedTiles") or [],
             default_timeframe=data.get("defaultTimeframe") or "",
             refresh_rate=data.get("refreshRate") or "",
         )

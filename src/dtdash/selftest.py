@@ -13,7 +13,9 @@ import time
 from dataclasses import dataclass, field
 
 from . import catalog
+from .capabilities import STATUS_DENIED, STATUS_EMPTY, probe_tables
 from .client import extract_id, extract_version
+from .metrics import ALIAS, MISSING, MetricCatalogView
 from .errors import ApiError, DtDashError
 from .version import DASHBOARD_CONTENT_VERSION
 
@@ -173,6 +175,9 @@ class SelfTest(object):
                   hint="sem esse endpoint o dtdash valida executando com limit")
         self._run("grail.dataobjects", "Grail - data objects disponiveis",
                   self.check_data_objects)
+        self._run("grail.tables", "Permissao de leitura por tabela Grail",
+                  self.check_tables,
+                  hint="conceda as permissoes storage:<tabela>:read ao token/OAuth client")
         self._run("grail.dps", "Consumo DPS (dt.system.events)", self.check_dps,
                   hint="escopo storage:system:read")
         if metrics:
@@ -290,25 +295,47 @@ class SelfTest(object):
         return WARN, ("sem eventos de billing nas ultimas 24h - isso NAO prova ausencia de "
                       "licenca (eventos medem consumo, nao entitlement)"), {"dps": False}
 
+    def check_tables(self):
+        tables = probe_tables(self.client)
+        negadas = sorted(t for t, info in tables.items()
+                         if info.get("status") == STATUS_DENIED)
+        vazias = sorted(t for t, info in tables.items()
+                        if info.get("status") == STATUS_EMPTY)
+        permissoes = sorted({tables[t].get("permission") for t in negadas
+                             if tables[t].get("permission")})
+        if negadas:
+            return WARN, ("sem permissao: %s (conceda %s); sem dados na janela: %s"
+                          % (", ".join(negadas), ", ".join(permissoes),
+                             ", ".join(vazias) or "-")), {
+                "tables": tables, "denied": negadas, "permissions": permissoes}
+        return OK, "todas as tabelas sondadas sao legiveis; sem dados na janela: %s" % (
+            ", ".join(vazias) or "-"), {"tables": tables}
+
     def check_metrics(self):
         keys = sorted({m for bp in catalog.CATALOG for m in bp.metrics})
         if not keys:
             return SKIP, "catalogo sem metricas", {}
-        listed = ", ".join('"%s"' % k for k in keys)
-        outcome = self.client.execute_query(
-            "metrics\n| filter in(metric.key, {%s})\n| fields metric.key" % listed,
-            max_records=500,
-        )
-        found = {r.get("metric.key") for r in outcome.get("records") or []}
-        missing = [k for k in keys if k not in found]
+        view = MetricCatalogView.load(self.client)
+        if view.available is not True:
+            return WARN, "nao foi possivel verificar: %s" % view.reason, {
+                "reason": view.reason}
+        resolutions = view.resolve_all(keys)
+        alias = {k: r.resolved for k, r in resolutions.items() if r.status == ALIAS}
+        missing = sorted(k for k, r in resolutions.items() if r.status == MISSING)
         afetados = sorted({bp.bp_id for bp in catalog.CATALOG
                            if set(bp.metrics) & set(missing)})
-        status = OK if not missing else WARN
-        detail = "%d de %d metricas presentes" % (len(keys) - len(missing), len(keys))
+        detail = "%d de %d chaves Grail presentes" % (len(keys) - len(alias) - len(missing),
+                                                      len(keys))
+        if alias:
+            detail += "; %d resolvidas pela chave classica (ex.: %s)" % (
+                len(alias), "; ".join("%s -> %s" % kv for kv in sorted(alias.items())[:3]))
         if missing:
-            detail += "; ausentes: %s" % ", ".join(missing[:8])
-            detail += " (blueprints afetados: %s)" % ", ".join(afetados[:8])
-        return status, detail, {"missing": missing, "affectedBlueprints": afetados}
+            detail += "; ausentes: %s (blueprints: %s)" % (
+                ", ".join(missing[:8]), ", ".join(afetados[:8]))
+        status = OK if not missing else WARN
+        return status, detail, {"missing": missing, "alias": alias,
+                                "affectedBlueprints": afetados,
+                                "indexSize": len(view.index)}
 
     def check_blueprint_queries(self):
         available = self.client.verify_query(SYNTHETIC_DQL)

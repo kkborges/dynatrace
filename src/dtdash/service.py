@@ -91,7 +91,7 @@ class DashboardService(object):
     # ------------------------------------------------------------------ plano
     def plan(self, text, tenant=None, name=None, audience=None, segment_mode="tile",
              max_tiles=None, base_template=None, probe=True, validate_live=False,
-             client_name=None, extra_domains=None):
+             client_name=None, extra_domains=None, on_missing="drop"):
         profile = self.tenant(tenant, required=False)
         caps = self.capabilities(tenant, probe=probe)
         dt_client = None
@@ -116,6 +116,7 @@ class DashboardService(object):
             audience=audience,
             base_spec=base_spec,
             extra_domains=extra_domains,
+            on_missing=on_missing,
         )
         # sugestoes de templates ja existentes (reuso entre clientes)
         suggestions = self.library.search(text, limit=5)
