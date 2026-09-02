@@ -32,10 +32,10 @@ class TempWorkspaceTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def add_tenant(self, name="teste", token="dt0s16.FAKE"):
+    def add_tenant(self, name="teste", token="dt0s16.FAKE", client="Cliente Teste"):
         os.environ["DT_PLATFORM_TOKEN_TESTE"] = token
         profile = TenantProfile(
-            name=name, environment_id="abc12345", client_name="Cliente Teste",
+            name=name, environment_id="abc12345", client_name=client,
             platform_token_env="DT_PLATFORM_TOKEN_TESTE",
         )
         self.config.put_tenant(profile)

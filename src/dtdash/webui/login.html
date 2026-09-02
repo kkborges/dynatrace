@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dtdash - entrar</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <form class="login-card" id="form">
+    <h1>dtdash</h1>
+    <p class="sub">Gerador de dashboards Dynatrace</p>
+    <label for="user">Usuario</label>
+    <input id="user" name="user" autocomplete="username" autofocus required>
+    <label for="password">Senha</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <div class="actions"><button class="primary" style="width:100%" type="submit">Entrar</button></div>
+    <div class="msg" id="msg"></div>
+    <p class="hint">Primeiro acesso? O usuario e a senha iniciais sao exibidos no console
+    ao iniciar <code>dtdash serve</code>.</p>
+  </form>
+</div>
+<script>
+document.getElementById("form").onsubmit = async (event) => {
+  event.preventDefault();
+  const msg = document.getElementById("msg");
+  msg.className = "msg";
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Requested-With": "dtdash" },
+      body: JSON.stringify({
+        user: document.getElementById("user").value,
+        password: document.getElementById("password").value
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "falha ao entrar");
+    window.location = "/";
+  } catch (error) {
+    msg.textContent = error.message;
+    msg.className = "msg show err";
+  }
+};
+</script>
+</body>
+</html>

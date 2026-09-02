@@ -141,3 +141,36 @@ class MinimumSizeTest(TempWorkspaceTest):
         spec = self.planner.plan("monitorar filas kafka e mensageria")
         self.assertIn("services", spec.domains)
         self.assertTrue(any(t.blueprint == "messaging.throughput" for t in spec.tiles))
+
+
+class SectionOrderTest(TempWorkspaceTest):
+    def setUp(self):
+        super().setUp()
+        self.planner = Planner(knowledge=KnowledgeStore(self.workspace).build())
+
+    def sections(self, spec):
+        return [t.markdown.strip()[3:] for t in spec.tiles
+                if t.kind == "markdown" and (t.markdown or "").startswith("## ")]
+
+    def test_resumo_vem_primeiro_e_dps_por_ultimo(self):
+        spec = self.planner.plan(
+            "acompanhar custo DPS, erros de log e taxa de erro dos servicos")
+        secoes = self.sections(spec)
+        self.assertEqual(secoes[0], "Resumo executivo")
+        self.assertEqual(secoes[-1], "Consumo da plataforma (DPS)")
+
+    def test_secoes_seguem_a_relevancia_dos_dominios(self):
+        spec = self.planner.plan(
+            "pods do kubernetes reiniciando e, secundariamente, erros de log")
+        secoes = self.sections(spec)
+        self.assertIn("Kubernetes", secoes)
+        self.assertLess(secoes.index("Kubernetes"), len(secoes))
+
+    def test_consumo_de_cpu_nao_ativa_o_dominio_dps(self):
+        spec = self.planner.plan(
+            "hosts linux e windows em producao: consumo de cpu e consumo de memoria")
+        self.assertNotIn("dps", spec.domains)
+
+    def test_consumo_da_plataforma_ativa_o_dominio_dps(self):
+        spec = self.planner.plan("acompanhar o consumo da plataforma e o custo de query")
+        self.assertIn("dps", spec.domains)

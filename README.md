@@ -109,12 +109,38 @@ os uids dos segments criados e o caminho do template salvo.
 ./dtdash serve            # http://127.0.0.1:8080
 ```
 
-A interface cobre o fluxo completo: descrever, gerar previa, revisar, aprovar (ou
-simular/rejeitar), navegar na biblioteca de templates, sincronizar o conhecimento
-e enviar arquivos de exemplo.
+No primeiro acesso o servidor cria o usuario `admin` e imprime a senha no console
+(uma unica vez). Depois:
 
-> Ao expor o servidor fora de `127.0.0.1`, defina `DTDASH_WEB_TOKEN` — o servidor
-> passa a exigir o header `X-Dtdash-Token`.
+```bash
+./dtdash users add joana --role operador     # admin | operador | leitor
+./dtdash users passwd admin
+./dtdash users list
+```
+
+| Tela | O que faz |
+|---|---|
+| **Visao geral** | numeros do ambiente, clientes atendidos e ultimos dashboards publicados |
+| **Clientes / tenants** | cadastro (criar, editar, excluir) e botao "testar" com a matriz de permissoes do Grail |
+| **Solicitar dashboard** | o prompt da necessidade, opcoes de geracao, pre-visualizacao e aprovacao |
+| **Historico** | tudo que ja foi publicado, filtravel por cliente, com link para o dashboard e para a previa |
+| **Biblioteca** | templates genericos e por cliente, com "usar como base" e visualizacao do JSON |
+| **Conhecimento** | sincronizar docs/GitHub e enviar exemplos |
+| **Diagnostico** | o `selftest` do tenant pela interface |
+
+Papeis: `leitor` so consulta; `operador` gera e publica dashboards e cadastra
+clientes; `admin` tambem exclui cadastros.
+
+Seguranca: sessao por cookie `HttpOnly`/`SameSite=Strict` (12h deslizantes), senhas
+com PBKDF2-HMAC-SHA256, cabecalho anti-CSRF em toda escrita e escuta em
+`127.0.0.1` por padrao. Ao expor fora do localhost, use HTTPS por um proxy
+reverso; `DTDASH_WEB_TOKEN` continua disponivel para automacao via header
+`X-Dtdash-Token`.
+
+A **pre-visualizacao** e a mesma pagina HTML gerada pelo `plan`: layout na grade de
+24 colunas, esboco de cada tile conforme o tipo de visualizacao, DQL, segments,
+disponibilidade das metricas e a matriz necessidade x tile. Como e HTML, o proprio
+navegador exporta para PDF/imagem quando voce quiser anexar a previa a um e-mail.
 
 ## 5. Validar contra um tenant real (`selftest`)
 

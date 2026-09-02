@@ -75,9 +75,11 @@ DOMAIN_KEYWORDS = {
         "carrinho", "kpi de negocio",
     ],
     "dps": [
-        "dps", "consumo", "custo", "custos", "billing", "faturamento", "licenca",
-        "licencas", "finops", "chargeback", "showback", "gasto", "capacidade contratada",
-        "cost center", "centro de custo",
+        "dps", "custo", "custos", "billing", "faturamento", "licenca", "licencas",
+        "finops", "chargeback", "showback", "gasto", "gastos", "orcamento",
+        "capacidade contratada", "cost center", "centro de custo",
+        "consumo da plataforma", "consumo dps", "consumo de dados", "consumo de licenca",
+        "custo de query", "custo de consulta", "ingestao",
     ],
 }
 
@@ -657,7 +659,7 @@ class Planner(object):
                 tiles.append(clone)
 
         sections_seen = set()
-        ordered = sorted(blueprints, key=lambda bp: (bp.section, -bp.priority))
+        ordered = sorted(blueprints, key=lambda bp: (self._section_rank(bp, spec), -bp.priority))
         for bp in ordered:
             if bp.section and bp.section not in sections_seen:
                 sections_seen.add(bp.section)
@@ -670,6 +672,18 @@ class Planner(object):
                 )
             tiles.append(self._tile_from_blueprint(bp, next_id(), analysis, spec, variables))
         return tiles
+
+    def _section_rank(self, blueprint, spec):
+        """Resumo executivo primeiro, DPS por ultimo, o resto na ordem dos dominios."""
+
+        if blueprint.section == "Resumo executivo":
+            return -1
+        if blueprint.domain == "dps":
+            return 900
+        try:
+            return spec.domains.index(blueprint.domain)
+        except ValueError:
+            return 500
 
     def _tile_from_blueprint(self, bp, tile_id, analysis, spec, variables):
         query = bp.query

@@ -2,6 +2,7 @@
 
 import html
 import json
+import re
 import time
 
 from .builder import GRID_COLUMNS, build_dashboard
@@ -20,6 +21,45 @@ _SPARK = "M0,26 L14,18 L28,22 L42,10 L56,15 L70,6 L84,12 L98,4"
 
 def _esc(value):
     return html.escape(str(value if value is not None else ""))
+
+
+def render_markdown(text):
+    """Markdown minimo (titulos, negrito, italico, listas) para a previa."""
+
+    out = []
+    in_list = False
+    for raw in (text or "").splitlines():
+        line = _esc(raw.rstrip())
+        stripped = line.strip()
+        if stripped.startswith("- ") or stripped.startswith("* "):
+            if not in_list:
+                out.append("<ul>")
+                in_list = True
+            out.append("<li>%s</li>" % _inline_md(stripped[2:]))
+            continue
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+        if not stripped:
+            out.append("<br>")
+        elif stripped.startswith("### "):
+            out.append("<h3>%s</h3>" % _inline_md(stripped[4:]))
+        elif stripped.startswith("## "):
+            out.append("<h2 class=\"mdh\">%s</h2>" % _inline_md(stripped[3:]))
+        elif stripped.startswith("# "):
+            out.append("<h1 class=\"mdh\">%s</h1>" % _inline_md(stripped[2:]))
+        else:
+            out.append("<p>%s</p>" % _inline_md(stripped))
+    if in_list:
+        out.append("</ul>")
+    return "".join(out)
+
+
+def _inline_md(text):
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"<em>\1</em>", text)
+    text = re.sub(r"`(.+?)`", r"<code>\1</code>", text)
+    return text
 
 
 def _viz_sketch(viz):
@@ -70,9 +110,9 @@ def render_html(spec, report=None, document=None, deployment=None):
             continue
         span = int(layout["w"])
         if tile.kind == "markdown":
-            body = _esc(tile.markdown or "").replace("\n", "<br>")
             cards.append(
-                '<div class="tile md" style="grid-column: span %d">%s</div>' % (span, body)
+                '<div class="tile md" style="grid-column: span %d">%s</div>'
+                % (span, render_markdown(tile.markdown))
             )
             continue
         answers = ", ".join(tile.answers) or "-"
@@ -361,8 +401,14 @@ border-bottom:1px solid var(--line);padding-bottom:6px}
 .grid{display:grid;grid-template-columns:repeat(%(columns)d,1fr);gap:10px}
 .tile{grid-column:span 12;background:var(--card);border:1px solid var(--line);
 border-radius:10px;padding:12px;min-height:96px}
-.tile.md{background:transparent;border:none;padding:4px 2px;min-height:0}
-.tile.md br+br{line-height:.4}
+.tile.md{background:transparent;border:none;padding:2px;min-height:0}
+.tile.md p{margin:2px 0}
+.tile.md ul{margin:4px 0 4px 4px}
+.tile.md h1.mdh{font-size:19px;margin:2px 0 6px}
+.tile.md h2.mdh{font-size:14px;margin:10px 0 2px;text-transform:uppercase;
+letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:4px}
+.tile.md h3{font-size:13px;margin:6px 0 2px}
+.tile.md br{line-height:.5}
 .thead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .chip{background:var(--accent);color:#fff;border-radius:999px;padding:1px 9px;font-size:11px;
 white-space:nowrap}
