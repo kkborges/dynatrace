@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-09-01T11:41:45",
+  "total": 6,
+  "templates": [
+    {
+      "ref": "dashboards/library/consumo-da-plataforma-dps.json",
+      "name": "Consumo da Plataforma (DPS)",
+      "scope": "library",
+      "client": "generico",
+      "audience": "finops",
+      "domains": [
+        "dps",
+        "hosts",
+        "logs"
+      ],
+      "tags": [
+        "dps",
+        "dtdash",
+        "finops",
+        "hosts",
+        "logs"
+      ],
+      "tiles": 13,
+      "variables": 0,
+      "segments": [],
+      "savedAt": "2026-09-01T11:41:45",
+      "tenant": "",
+      "requirements": [
+        "Dashboard de FinOps para acompanhar o consumo DPS: consumo por capacidade, volume faturado em GiB, custo de consulta por origem no Grail e tendencia diaria de consumo."
+      ],
+      "deployment": {}
+    },
+    {
+      "ref": "dashboards/library/experiencia-do-usuario-rum.json",
+      "name": "Experiencia do Usuario (RUM)",
+      "scope": "library",
+      "client": "generico",
+      "audience": "sre",
+      "domains": [
+        "rum",
+        "services"
+      ],
+      "tags": [
+        "dtdash",
+        "rum",
+        "services",
+        "sre"
+      ],
+      "tiles": 17,
+      "variables": 1,
+      "segments": [],
+      "savedAt": "2026-09-01T11:41:45",
+      "tenant": "",
+      "requirements": [
+        "Dashboard de experiencia do usuario: usuarios ativos e sessoes por aplicacao, erros de frontend, Core Web Vitals p75, duracao das acoes de usuario e usuarios por pais."
+      ],
+      "deployment": {}
+    },
+    {
+      "ref": "dashboards/library/golden-signals-de-servicos.json",
+      "name": "Golden Signals de Servicos",
+      "scope": "library",
+      "client": "generico",
+      "audience": "sre",
+      "domains": [
+        "services"
+      ],
+      "tags": [
+        "dtdash",
+        "services",
+        "sre"
+      ],
+      "tiles": 10,
+      "variables": 1,
+      "segments": [],
+      "savedAt": "2026-09-01T11:41:45",
+      "tenant": "",
+      "requirements": [
+        "Dashboard para SRE acompanhar os sinais de ouro dos servicos: volume de requisicoes, taxa de erro, tempo de resposta p50/p90/p99 e ranking dos servicos mais lentos e com mais falhas."
+      ],
+      "deployment": {}
+    },
+    {
+      "ref": "dashboards/library/observabilidade-de-logs.json",
+      "name": "Observabilidade de Logs",
+      "scope": "library",
+      "client": "generico",
+      "audience": "sre",
+      "domains": [
+        "logs",
+        "services"
+      ],
+      "tags": [
+        "dtdash",
+        "logs",
+        "services",
+        "sre"
+      ],
+      "tiles": 17,
+      "variables": 0,
+      "segments": [],
+      "savedAt": "2026-09-01T11:41:45",
+      "tenant": "",
+      "requirements": [
+        "Dashboard de analise de logs no Grail: volume de logs por severidade, erros ao longo do tempo, distribuicao por severidade, principais mensagens de erro e erros por origem."
+      ],
+      "deployment": {}
+    },
+    {
+      "ref": "dashboards/library/saude-de-kubernetes.json",
+      "name": "Saude de Kubernetes",
+      "scope": "library",
+      "client": "generico",
+      "audience": "sre",
+      "domains": [
+        "kubernetes",
+        "hosts",
+        "spans",
+        "services",
+        "logs"
+      ],
+      "tags": [
+        "dtdash",
+        "hosts",
+        "kubernetes",
+        "logs",
+        "services",
+        "spans",
+        "sre"
+      ],
+      "tiles": 20,
+      "variables": 2,
+      "segments": [],
+      "savedAt": "2026-09-01T11:41:45",
+      "tenant": "",
+      "requirements": [
+        "Dashboard de operacao para Kubernetes: pods em execucao por cluster, pods fora do estado Running, pods com mais reinicios, OOM kills, CPU e memoria por namespace e logs de erro por namespace."
+      ],
+      "deployment": {}
+    },
+    {
+      "ref": "dashboards/library/visao-executiva-de-disponibilidade.json",
+      "name": "Visao Executiva de Disponibilidade",
+      "scope": "library",
+      "client": "generico",
+      "audience": "exec",
+      "domains": [
+        "problems",
+        "services",
+        "rum"
+      ],
+      "tags": [
+        "dtdash",
+        "exec",
+        "problems",
+        "rum",
+        "services"
+      ],
+      "tiles": 14,
+      "variables": 0,
+      "segments": [],
+      "savedAt": "2026-09-01T11:41:45",
+      "tenant": "",
+      "requirements": [
+        "Resumo gerencial para a diretoria: problemas ativos do Davis, taxa de erro global, usuarios impactados, problemas por categoria e problemas ao longo do tempo."
+      ],
+      "deployment": {}
+    }
+  ]
+}

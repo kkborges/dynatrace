@@ -1,0 +1,276 @@
+{
+  "name": "Consumo da Plataforma (DPS)",
+  "type": "dashboard",
+  "description": "Dashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: dps, hosts, logs. Audiencia: finops.",
+  "content": {
+    "version": 21,
+    "variables": [],
+    "tiles": {
+      "1": {
+        "type": "markdown",
+        "content": "# Consumo da Plataforma (DPS)\n\nDashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: dps, hosts, logs. Audiencia: finops.\n\n**Perguntas que este dashboard responde:**\n- Dashboard de FinOps para acompanhar o consumo DPS: consumo por capacidade, volume faturado em GiB, custo de consulta por origem no Grail e tendencia diaria de consumo."
+      },
+      "2": {
+        "type": "markdown",
+        "content": "## Consumo da plataforma (DPS)"
+      },
+      "3": {
+        "type": "data",
+        "title": "Consumo DPS por capacidade (eventos)",
+        "query": "fetch dt.system.events\n| filter event.kind == \"BILLING_USAGE_EVENT\"\n| summarize eventos = count(), by:{event.type}\n| sort eventos desc\n| limit 20",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "categoryAxis": {
+              "tickLayout": "horizontal"
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quais capacidades da plataforma estao sendo consumidas?"
+      },
+      "4": {
+        "type": "data",
+        "title": "Volume faturado (GiB) por capacidade",
+        "query": "fetch dt.system.events\n| filter event.kind == \"BILLING_USAGE_EVENT\"\n| filter isNotNull(billed_bytes)\n| dedup {event.id, event.type}\n| summarize gib = sum(toDouble(billed_bytes) / 1073741824), by:{event.type}\n| sort gib desc\n| limit 20",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "Quanto volume esta sendo faturado por capacidade?"
+      },
+      "5": {
+        "type": "data",
+        "title": "Custo de consulta por origem",
+        "query": "fetch dt.system.events\n| filter event.kind == \"BILLING_USAGE_EVENT\"\n| filter in(event.type, \"Log Management & Analytics - Query\", \"Events - Query\", \"Traces - Query\", \"Files - Query\")\n| dedup {event.id, event.type}\n| fieldsAdd origem = coalesce(client.source, client.application_context, client.workflow_context, \"desconhecido\")\n| summarize gib = sum(toDouble(billed_bytes) / 1073741824), by:{origem}\n| sort gib desc\n| limit 20",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "Quem esta varrendo mais dados no Grail?"
+      },
+      "6": {
+        "type": "markdown",
+        "content": "## Infraestrutura"
+      },
+      "7": {
+        "type": "data",
+        "title": "CPU por host (media)",
+        "query": "timeseries cpu = avg(dt.host.cpu.usage), by:{dt.smartscape.host}\n| fieldsAdd host = getNodeName(dt.smartscape.host)",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Como esta o consumo de CPU dos hosts no periodo?"
+      },
+      "8": {
+        "type": "data",
+        "title": "Memoria por host (media)",
+        "query": "timeseries memoria = avg(dt.host.memory.usage), by:{dt.smartscape.host}\n| fieldsAdd host = getNodeName(dt.smartscape.host)",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Como esta o consumo de memoria dos hosts?"
+      },
+      "9": {
+        "type": "data",
+        "title": "Top 10 hosts por CPU",
+        "query": "timeseries cpu = avg(dt.host.cpu.usage), by:{dt.smartscape.host}\n| fieldsAdd host = getNodeName(dt.smartscape.host), cpu_media = arrayAvg(cpu)\n| fields host, cpu_media\n| sort cpu_media desc\n| limit 10",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "categoryAxis": {
+              "tickLayout": "horizontal"
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quais hosts estao com maior consumo de CPU?"
+      },
+      "10": {
+        "type": "data",
+        "title": "Hosts monitorados",
+        "query": "smartscapeNodes \"HOST\"\n| summarize hosts = count()",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "hosts",
+            "label": "Hosts",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Quantos hosts estao sob monitoramento?"
+      },
+      "11": {
+        "type": "markdown",
+        "content": "## Logs"
+      },
+      "12": {
+        "type": "data",
+        "title": "Erros em log ao longo do tempo",
+        "query": "fetch logs\n| filter in(status, {\"ERROR\", \"FATAL\"})\n| makeTimeseries erros = count()",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quando os erros aumentaram?"
+      },
+      "13": {
+        "type": "data",
+        "title": "Volume de logs por severidade",
+        "query": "fetch logs\n| makeTimeseries registros = count(), by:{status}",
+        "visualization": "areaChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Como evolui o volume de logs no periodo?"
+      }
+    },
+    "layouts": {
+      "1": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "2": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 2
+      },
+      "3": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      },
+      "4": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "5": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      },
+      "6": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 2
+      },
+      "7": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 7
+      },
+      "8": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 7
+      },
+      "9": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 7
+      },
+      "10": {
+        "x": 12,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "11": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 2
+      },
+      "12": {
+        "x": 0,
+        "y": 39,
+        "w": 12,
+        "h": 7
+      },
+      "13": {
+        "x": 12,
+        "y": 39,
+        "w": 12,
+        "h": 7
+      }
+    },
+    "settings": {
+      "gridLayout": {
+        "columnsCount": 24
+      }
+    }
+  },
+  "dtdash": {
+    "origin": "biblioteca",
+    "scope": "library",
+    "client": "generico",
+    "savedAt": "2026-09-01T11:41:45",
+    "reusable": true,
+    "audience": "finops",
+    "domains": [
+      "dps",
+      "hosts",
+      "logs"
+    ],
+    "tags": [
+      "dps",
+      "dtdash",
+      "finops",
+      "hosts",
+      "logs"
+    ],
+    "tenant": "",
+    "requestText": "Dashboard de FinOps para acompanhar o consumo DPS: consumo por capacidade, volume faturado em GiB, custo de consulta por origem no Grail e tendencia diaria de consumo.",
+    "requirements": [
+      "Dashboard de FinOps para acompanhar o consumo DPS: consumo por capacidade, volume faturado em GiB, custo de consulta por origem no Grail e tendencia diaria de consumo."
+    ],
+    "segments": [],
+    "dataObjects": [
+      "dps",
+      "hosts",
+      "logs"
+    ]
+  }
+}

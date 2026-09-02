@@ -1,0 +1,235 @@
+{
+  "name": "Golden Signals de Servicos",
+  "type": "dashboard",
+  "description": "Dashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: services. Audiencia: sre.",
+  "content": {
+    "version": 21,
+    "variables": [
+      {
+        "key": "Servico",
+        "type": "query",
+        "visible": true,
+        "editable": true,
+        "version": 2,
+        "input": "smartscapeNodes SERVICE | fields name | sort name asc",
+        "multiple": true,
+        "defaultValue": "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      }
+    ],
+    "tiles": {
+      "1": {
+        "type": "markdown",
+        "content": "# Golden Signals de Servicos\n\nDashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: services. Audiencia: sre.\n\n**Perguntas que este dashboard responde:**\n- Dashboard para SRE acompanhar os sinais de ouro dos servicos: volume de requisicoes, taxa de erro, tempo de resposta p50/p90/p99 e ranking dos servicos mais lentos e com mais falhas."
+      },
+      "2": {
+        "type": "markdown",
+        "content": "## Resumo executivo"
+      },
+      "3": {
+        "type": "data",
+        "title": "Taxa de erro global",
+        "query": "timeseries {\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}\n| fieldsAdd requisicoes = arraySum(total), erros = arraySum(falhas)\n| fieldsAdd taxa_erro_pct = if(requisicoes > 0, (erros * 100.0) / requisicoes, else: 0.0)\n| fields taxa_erro_pct",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "taxa_erro_pct",
+            "label": "Taxa de erro (%)",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Qual a taxa de erro consolidada do ambiente?"
+      },
+      "4": {
+        "type": "data",
+        "title": "Total de requisicoes",
+        "query": "timeseries total = sum(dt.service.request.count)\n| fieldsAdd requisicoes = arraySum(total)\n| fields requisicoes",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "requisicoes",
+            "label": "Requisicoes",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Qual o volume total de requisicoes no periodo?"
+      },
+      "5": {
+        "type": "markdown",
+        "content": "## Servicos"
+      },
+      "6": {
+        "type": "data",
+        "title": "Taxa de erro por servico",
+        "query": "timeseries {\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}, by:{dt.service.name}, filter: { in(dt.service.name, array($Servico)) }\n| fieldsAdd taxa_erro_pct = (falhas[] * 100.0) / total[]",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quais servicos estao falhando e quando?"
+      },
+      "7": {
+        "type": "data",
+        "title": "Tempo de resposta p90 por servico",
+        "query": "timeseries p90 = percentile(dt.service.request.response_time, 90), by:{dt.service.name}, filter: { in(dt.service.name, array($Servico)) }",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Os servicos estao dentro do tempo de resposta esperado?"
+      },
+      "8": {
+        "type": "data",
+        "title": "Requisicoes por servico",
+        "query": "timeseries requisicoes = sum(dt.service.request.count), by:{dt.service.name}, filter: { in(dt.service.name, array($Servico)) }",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Qual o volume de requisicoes por servico?"
+      },
+      "9": {
+        "type": "data",
+        "title": "Sinais de ouro por servico",
+        "query": "timeseries {\n  p50 = percentile(dt.service.request.response_time, 50),\n  p90 = percentile(dt.service.request.response_time, 90),\n  p99 = percentile(dt.service.request.response_time, 99),\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}, by:{dt.service.name}, filter: { in(dt.service.name, array($Servico)) }\n| fieldsAdd\n    requisicoes = arraySum(total),\n    erros = arraySum(falhas),\n    p50_ms = arrayAvg(p50) / 1000,\n    p90_ms = arrayAvg(p90) / 1000,\n    p99_ms = arrayAvg(p99) / 1000\n| fieldsAdd taxa_erro_pct = if(requisicoes > 0, (erros * 100.0) / requisicoes, else: 0.0)\n| fields dt.service.name, requisicoes, erros, taxa_erro_pct, p50_ms, p90_ms, p99_ms\n| sort taxa_erro_pct desc\n| limit 25",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "Qual a visao consolidada de trafego, erros e latencia por servico?"
+      },
+      "10": {
+        "type": "data",
+        "title": "Top 10 servicos mais lentos (p90)",
+        "query": "timeseries p90 = percentile(dt.service.request.response_time, 90), by:{dt.service.name}, filter: { in(dt.service.name, array($Servico)) }\n| fieldsAdd p90_ms = arrayAvg(p90) / 1000\n| fields dt.service.name, p90_ms\n| sort p90_ms desc\n| limit 10",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "categoryAxis": {
+              "tickLayout": "horizontal"
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quais servicos mais degradam a experiencia?"
+      }
+    },
+    "layouts": {
+      "1": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "2": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 2
+      },
+      "3": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "4": {
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "5": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 2
+      },
+      "6": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "7": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "8": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 7
+      },
+      "9": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 10
+      },
+      "10": {
+        "x": 0,
+        "y": 35,
+        "w": 12,
+        "h": 7
+      }
+    },
+    "settings": {
+      "gridLayout": {
+        "columnsCount": 24
+      }
+    }
+  },
+  "dtdash": {
+    "origin": "biblioteca",
+    "scope": "library",
+    "client": "generico",
+    "savedAt": "2026-09-01T11:41:45",
+    "reusable": true,
+    "audience": "sre",
+    "domains": [
+      "services"
+    ],
+    "tags": [
+      "dtdash",
+      "services",
+      "sre"
+    ],
+    "tenant": "",
+    "requestText": "Dashboard para SRE acompanhar os sinais de ouro dos servicos: volume de requisicoes, taxa de erro, tempo de resposta p50/p90/p99 e ranking dos servicos mais lentos e com mais falhas.",
+    "requirements": [
+      "Dashboard para SRE acompanhar os sinais de ouro dos servicos: volume de requisicoes, taxa de erro, tempo de resposta p50/p90/p99 e ranking dos servicos mais lentos e com mais falhas."
+    ],
+    "segments": [],
+    "dataObjects": [
+      "services"
+    ]
+  }
+}

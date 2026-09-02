@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dtdash - Dynatrace Dashboard Builder</title>
+<style>
+:root{color-scheme:light dark;--bg:#f4f6fb;--fg:#131a24;--card:#fff;--line:#dbe1ec;
+--muted:#5d6b80;--accent:#1f6feb;--ok:#2f6862;--warn:#b8730d;--err:#c62239}
+@media (prefers-color-scheme:dark){:root{--bg:#11141b;--fg:#e8ecf3;--card:#191e27;
+--line:#2a3240;--muted:#98a3b6;--accent:#5b9bff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{background:linear-gradient(120deg,#16233d,#274b7f);color:#fff;padding:16px 22px;
+display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{margin:0;font-size:18px;letter-spacing:.02em}
+header .env{margin-left:auto;font-size:12px;opacity:.85}
+nav{display:flex;gap:4px;padding:0 22px;background:var(--card);
+border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+nav button{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);
+padding:12px 14px;cursor:pointer;font-size:14px}
+nav button.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+main{padding:20px 22px;max-width:1500px;margin:0 auto}
+.panel{display:none}.panel.active{display:block}
+.cols{display:grid;grid-template-columns:minmax(340px,420px) 1fr;gap:18px;align-items:start}
+@media(max-width:1000px){.cols{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;
+margin-bottom:16px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 12px}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+textarea,input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:150px;resize:vertical}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.check{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--fg)}
+.check input{width:auto}
+button.primary{background:var(--accent);color:#fff;border:none;border-radius:7px;
+padding:10px 16px;cursor:pointer;font-size:14px;font-weight:600;margin-top:14px}
+button.primary:disabled{opacity:.55;cursor:progress}
+button.ghost{background:none;border:1px solid var(--line);border-radius:7px;padding:8px 12px;
+cursor:pointer;color:var(--fg);font-size:13px}
+button.danger{border-color:var(--err);color:var(--err)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+iframe{width:100%;height:72vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+.tag{display:inline-block;background:var(--accent);color:#fff;border-radius:999px;
+padding:1px 9px;font-size:11px;margin-right:4px}
+.tag.ok{background:var(--ok)}.tag.warn{background:var(--warn)}.tag.err{background:var(--err)}
+.msg{padding:10px 12px;border-radius:8px;margin-top:12px;font-size:13px;display:none}
+.msg.show{display:block}
+.msg.ok{background:rgba(47,104,98,.15);border:1px solid var(--ok)}
+.msg.err{background:rgba(198,34,57,.12);border:1px solid var(--err)}
+pre{white-space:pre-wrap;font-size:12px;background:rgba(127,127,127,.09);padding:10px;
+border-radius:8px;max-height:340px;overflow:auto}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>dtdash &middot; Dynatrace Dashboard Builder</h1>
+  <span class="env" id="env">carregando...</span>
+</header>
+<nav>
+  <button class="active" data-tab="gerar">Gerar</button>
+  <button data-tab="propostas">Propostas</button>
+  <button data-tab="templates">Templates</button>
+  <button data-tab="conhecimento">Conhecimento</button>
+  <button data-tab="diagnostico">Diagnostico</button>
+</nav>
+<main>
+
+<section class="panel active" id="tab-gerar">
+  <div class="cols">
+    <div>
+      <div class="card">
+        <h2>1. Descreva a necessidade</h2>
+        <textarea id="descricao" placeholder="Ex.: Preciso de um dashboard para o time de SRE acompanhar a saude dos servicos de pagamento em producao no Kubernetes: taxa de erro, latencia p90, pods reiniciando no namespace pagamentos, problemas ativos do Davis e erros de log das ultimas 24 horas."></textarea>
+        <div class="row">
+          <div><label>Tenant</label><select id="tenant"></select></div>
+          <div><label>Cliente</label><input id="cliente" placeholder="nome do cliente"></div>
+        </div>
+        <div class="row">
+          <div><label>Audiencia</label>
+            <select id="audiencia">
+              <option value="">detectar automaticamente</option>
+              <option value="exec">Executivo</option>
+              <option value="sre">SRE / Operacao</option>
+              <option value="dev">Engenharia</option>
+              <option value="finops">FinOps / DPS</option>
+            </select></div>
+          <div><label>Segments</label>
+            <select id="segmentMode">
+              <option value="tile">aplicar nos tiles (padrao)</option>
+              <option value="dql">embutir filtro na DQL</option>
+              <option value="both">tiles + DQL</option>
+            </select></div>
+        </div>
+        <div class="row">
+          <div><label>Nome do dashboard</label><input id="nome" placeholder="opcional"></div>
+          <div><label>Maximo de tiles</label><input id="maxTiles" type="number" min="4" max="40" placeholder="auto"></div>
+        </div>
+        <label>Template base (reuso)</label>
+        <select id="base"><option value="">nenhum</option></select>
+        <div class="check"><input type="checkbox" id="offline"><label for="offline" style="margin:0">nao consultar o tenant (offline)</label></div>
+        <div class="check"><input type="checkbox" id="validateLive"><label for="validateLive" style="margin:0">validar as DQL executando no tenant</label></div>
+        <button class="primary" id="btnGerar">Gerar previa</button>
+        <div class="msg" id="msgGerar"></div>
+      </div>
+
+      <div class="card" id="cardResumo" style="display:none">
+        <h2>2. Resumo da proposta</h2>
+        <div id="resumo"></div>
+        <h2 style="margin-top:16px">3. Aprovar e criar no tenant</h2>
+        <div class="check"><input type="checkbox" id="share"><label for="share" style="margin:0">compartilhar com todo o ambiente (leitura)</label></div>
+        <div class="check"><input type="checkbox" id="saveTemplate" checked><label for="saveTemplate" style="margin:0">salvar em dashboards/clients como template reutilizavel</label></div>
+        <div class="actions">
+          <button class="primary" id="btnAprovar" style="margin-top:0">Aprovar e criar</button>
+          <button class="ghost" id="btnDryRun">Simular (dry-run)</button>
+          <button class="ghost danger" id="btnRejeitar">Rejeitar</button>
+        </div>
+        <div class="msg" id="msgAprovar"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2>Previa</h2>
+        <iframe id="previa" title="previa do dashboard"></iframe>
+        <div class="hint">A previa mostra o layout, as DQL de cada tile, os segments propostos e a
+        cobertura das necessidades declaradas. Nada e criado no tenant ate a aprovacao.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="tab-propostas">
+  <div class="card">
+    <h2>Propostas geradas</h2>
+    <table id="tblPropostas"><thead><tr><th>ID</th><th>Nome</th><th>Status</th><th>Tenant</th>
+    <th>Tiles</th><th>Acoes</th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<section class="panel" id="tab-templates">
+  <div class="card">
+    <h2>Biblioteca de dashboards</h2>
+    <div class="hint">Templates criados em clientes ficam em <code>dashboards/clients/</code> e podem
+    ser reutilizados como base em outros clientes. Genericos ficam em <code>dashboards/library/</code>.</div>
+    <table id="tblTemplates"><thead><tr><th>Escopo</th><th>Cliente</th><th>Nome</th><th>Tiles</th>
+    <th>Dominios</th><th>Arquivo</th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<section class="panel" id="tab-conhecimento">
+  <div class="card">
+    <h2>Base de conhecimento</h2>
+    <pre id="kbStats">-</pre>
+    <div class="actions">
+      <button class="ghost" id="btnSync">Sincronizar docs + GitHub Dynatrace</button>
+    </div>
+    <label style="margin-top:16px">Enviar exemplos/templates (JSON, Markdown, DQL)</label>
+    <input type="file" id="arquivos" multiple>
+    <div class="actions"><button class="ghost" id="btnUpload">Enviar arquivos</button></div>
+    <div class="msg" id="msgKb"></div>
+  </div>
+</section>
+
+<section class="panel" id="tab-diagnostico">
+  <div class="card">
+    <h2>Selftest do tenant</h2>
+    <div class="hint">Executa, na ordem do fluxo de publicacao, as chamadas as APIs
+    Dynatrace usadas pelo dtdash e aponta divergencias (endpoint ausente, escopo
+    faltando, campo com outro nome, metrica inexistente). Por padrao e somente leitura.</div>
+    <div class="row" style="margin-top:12px">
+      <div><label>Tenant</label><select id="stTenant"></select></div>
+      <div style="display:flex;align-items:flex-end">
+        <button class="ghost" id="btnSelftest" style="width:100%">Executar selftest</button>
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" id="stWrite"><label for="stWrite" style="margin:0">
+      modo escrita: cria e remove um segment e um dashboard temporarios (prefixo dtdash-selftest)</label></div>
+    <div class="check"><input type="checkbox" id="stQueries" checked><label for="stQueries" style="margin:0">
+      validar a sintaxe das DQL de todos os blueprints</label></div>
+    <div class="msg" id="msgSelftest"></div>
+    <table id="tblSelftest" style="margin-top:14px"><thead><tr><th>Status</th><th>Verificacao</th>
+    <th>Detalhe</th></tr></thead><tbody></tbody></table>
+  </div>
+</section>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let proposalAtual = null;
+
+function show(el, text, ok) {
+  el.textContent = text;
+  el.className = "msg show " + (ok ? "ok" : "err");
+}
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const text = await response.text();
+  let data;
+  try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
+  if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+  return data;
+}
+
+document.querySelectorAll("nav button").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+    btn.classList.add("active");
+    $("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "propostas") carregarPropostas();
+    if (btn.dataset.tab === "templates") carregarTemplates();
+    if (btn.dataset.tab === "diagnostico") sincronizarTenantSelftest();
+  };
+});
+
+async function carregarEstado() {
+  const state = await api("/api/state");
+  $("env").textContent = "workspace: " + state.workspace + " | conhecimento: "
+    + state.knowledge.documents + " docs | templates: " + state.templates;
+  const select = $("tenant");
+  select.innerHTML = '<option value="">(sem tenant / offline)</option>';
+  state.tenants.forEach((t) => {
+    const option = document.createElement("option");
+    option.value = t.name;
+    option.textContent = t.name + (t.hasCredentials ? "" : " (sem credenciais)");
+    if (t.default) option.selected = true;
+    select.appendChild(option);
+  });
+  $("kbStats").textContent = JSON.stringify(state.knowledge, null, 2);
+  const templates = await api("/api/templates");
+  const base = $("base");
+  base.innerHTML = '<option value="">nenhum</option>';
+  templates.forEach((t) => {
+    const option = document.createElement("option");
+    option.value = t.ref;
+    option.textContent = t.name + " [" + t.scope + (t.client ? "/" + t.client : "") + "]";
+    base.appendChild(option);
+  });
+}
+
+$("btnGerar").onclick = async () => {
+  const button = $("btnGerar");
+  button.disabled = true;
+  show($("msgGerar"), "gerando proposta...", true);
+  try {
+    const data = await api("/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: $("descricao").value,
+        tenant: $("tenant").value,
+        client: $("cliente").value,
+        name: $("nome").value,
+        audience: $("audiencia").value,
+        segmentMode: $("segmentMode").value,
+        maxTiles: $("maxTiles").value,
+        base: $("base").value,
+        offline: $("offline").checked,
+        validateLive: $("validateLive").checked
+      })
+    });
+    proposalAtual = data.proposalId;
+    $("previa").src = data.previewUrl;
+    $("cardResumo").style.display = "block";
+    const report = data.report || {};
+    $("resumo").innerHTML =
+      "<p><strong>" + data.name + "</strong></p>" +
+      "<p>" + data.tiles + " tiles &middot; audiencia " + data.audience +
+      " &middot; dominios: " + (data.domains || []).join(", ") + "</p>" +
+      "<p>" + (data.segments || []).map((s) =>
+        '<span class="tag ok">segment: ' + s.name + "</span>").join(" ") +
+      (data.variables || []).map((v) => '<span class="tag">$' + v.key + "</span>").join(" ") + "</p>" +
+      '<p><span class="tag ' + (report.errors ? "err" : "ok") + '">' + (report.errors || 0) +
+      " erro(s)</span><span class=\"tag warn\">" + (report.warnings || 0) + " aviso(s)</span></p>" +
+      "<pre>" + (data.warnings || []).join("\n") + "</pre>";
+    show($("msgGerar"), "proposta " + data.proposalId + " gerada. Revise a previa ao lado.", true);
+  } catch (error) {
+    show($("msgGerar"), "erro: " + error.message, false);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+async function aprovar(dryRun) {
+  if (!proposalAtual) return;
+  if (!dryRun && !confirm("Criar este dashboard no tenant selecionado?")) return;
+  show($("msgAprovar"), dryRun ? "simulando..." : "criando no tenant...", true);
+  try {
+    const data = await api("/api/proposals/" + proposalAtual + "/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant: $("tenant").value,
+        client: $("cliente").value,
+        share: $("share").checked,
+        noTemplate: !$("saveTemplate").checked,
+        dryRun: dryRun
+      })
+    });
+    const link = data.url && data.url.startsWith("http")
+      ? ' <a href="' + data.url + '" target="_blank" rel="noopener">abrir dashboard</a>' : "";
+    $("msgAprovar").innerHTML = (dryRun ? "simulacao concluida. " : "dashboard criado. ")
+      + "id: " + data.documentId + link
+      + (data.templatePath ? "<br>template salvo em " + data.templatePath : "")
+      + ((data.warnings || []).length ? "<br>avisos: " + data.warnings.join("; ") : "");
+    $("msgAprovar").className = "msg show ok";
+    $("previa").src = "/api/proposals/" + proposalAtual + "/preview?ts=" + Date.now();
+  } catch (error) {
+    show($("msgAprovar"), "erro: " + error.message, false);
+  }
+}
+
+$("btnAprovar").onclick = () => aprovar(false);
+$("btnDryRun").onclick = () => aprovar(true);
+$("btnRejeitar").onclick = async () => {
+  if (!proposalAtual) return;
+  const reason = prompt("Motivo da rejeicao (opcional):") || "";
+  await api("/api/proposals/" + proposalAtual + "/reject", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: reason })
+  });
+  show($("msgAprovar"), "proposta rejeitada.", true);
+};
+
+async function carregarPropostas() {
+  const rows = await api("/api/proposals");
+  const tbody = $("tblPropostas").querySelector("tbody");
+  tbody.innerHTML = "";
+  rows.forEach((p) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + p.id + "</td><td>" + (p.name || "") + "</td><td>" +
+      (p.status || "") + "</td><td>" + (p.tenant || "-") + "</td><td>" + (p.tiles || 0) + "</td>" +
+      '<td><button class="ghost" data-id="' + p.id + '">abrir</button></td>';
+    tr.querySelector("button").onclick = () => {
+      proposalAtual = p.id;
+      $("previa").src = "/api/proposals/" + p.id + "/preview";
+      $("cardResumo").style.display = "block";
+      document.querySelector('nav button[data-tab="gerar"]').click();
+    };
+    tbody.appendChild(tr);
+  });
+}
+
+async function carregarTemplates() {
+  const rows = await api("/api/templates");
+  const tbody = $("tblTemplates").querySelector("tbody");
+  tbody.innerHTML = "";
+  rows.forEach((t) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + t.scope + "</td><td>" + (t.client || "-") + "</td><td>" + t.name +
+      "</td><td>" + t.tiles + "</td><td>" + (t.domains || []).join(", ") + "</td><td><code>" +
+      t.ref + "</code></td>";
+    tbody.appendChild(tr);
+  });
+}
+
+$("btnSync").onclick = async () => {
+  show($("msgKb"), "sincronizando (pode levar alguns minutos)...", true);
+  try {
+    const data = await api("/api/kb/sync", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: "{}" });
+    $("kbStats").textContent = JSON.stringify(data, null, 2);
+    show($("msgKb"), "sincronizacao concluida.", true);
+    carregarEstado();
+  } catch (error) { show($("msgKb"), "erro: " + error.message, false); }
+};
+
+$("btnUpload").onclick = async () => {
+  const input = $("arquivos");
+  if (!input.files.length) { show($("msgKb"), "selecione ao menos um arquivo.", false); return; }
+  const form = new FormData();
+  for (const file of input.files) form.append("files", file);
+  try {
+    const data = await api("/api/upload", { method: "POST", body: form });
+    show($("msgKb"), "arquivos recebidos: " + data.saved.length, true);
+    $("kbStats").textContent = JSON.stringify(data.knowledge, null, 2);
+  } catch (error) { show($("msgKb"), "erro: " + error.message, false); }
+};
+
+function sincronizarTenantSelftest() {
+  const origem = $("tenant");
+  const destino = $("stTenant");
+  destino.innerHTML = "";
+  Array.from(origem.options).forEach((option) => {
+    if (!option.value) return;
+    const clone = document.createElement("option");
+    clone.value = option.value;
+    clone.textContent = option.textContent;
+    clone.selected = option.selected;
+    destino.appendChild(clone);
+  });
+  if (!destino.options.length) {
+    const vazio = document.createElement("option");
+    vazio.textContent = "(nenhum tenant configurado)";
+    vazio.value = "";
+    destino.appendChild(vazio);
+  }
+}
+
+const ST_TAG = { ok: "ok", warn: "warn", fail: "err", skip: "" };
+
+$("btnSelftest").onclick = async () => {
+  const tenant = $("stTenant").value;
+  if (!tenant) { show($("msgSelftest"), "configure um tenant primeiro.", false); return; }
+  const write = $("stWrite").checked;
+  if (write && !confirm("O modo escrita cria e remove um segment e um dashboard temporarios em "
+      + tenant + ". Continuar?")) return;
+  const button = $("btnSelftest");
+  button.disabled = true;
+  show($("msgSelftest"), "executando...", true);
+  try {
+    const data = await api("/api/selftest", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant: tenant, write: write, queries: $("stQueries").checked })
+    });
+    const tbody = $("tblSelftest").querySelector("tbody");
+    tbody.innerHTML = "";
+    data.checks.forEach((check) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td><span class="tag ' + (ST_TAG[check.status] || "") + '">' +
+        check.status + "</span></td><td>" + check.title + "<br><code>" + check.id +
+        "</code></td><td>" + (check.detail || "") +
+        (check.hint && check.status !== "ok" ? '<div class="hint">-> ' + check.hint + "</div>" : "") +
+        "</td>";
+      tbody.appendChild(tr);
+    });
+    const counts = data.counts;
+    show($("msgSelftest"), counts.ok + " ok, " + counts.warn + " aviso(s), " +
+      counts.fail + " falha(s) em " + data.durationSeconds + "s"
+      + (data.reportPath ? " | relatorio: " + data.reportPath : ""), data.ok);
+  } catch (error) {
+    show($("msgSelftest"), "erro: " + error.message, false);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+carregarEstado();
+</script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+{
+  "name": "Visao Executiva de Disponibilidade",
+  "type": "dashboard",
+  "description": "Dashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: problems, services, rum. Audiencia: exec.",
+  "content": {
+    "version": 21,
+    "variables": [],
+    "tiles": {
+      "1": {
+        "type": "markdown",
+        "content": "# Visao Executiva de Disponibilidade\n\nDashboard gerado pelo dtdash a partir da descricao do solicitante. Dominios: problems, services, rum. Audiencia: exec.\n\n**Perguntas que este dashboard responde:**\n- Resumo gerencial para a diretoria: problemas ativos do Davis, taxa de erro global, usuarios impactados, problemas por categoria e problemas ao longo do tempo."
+      },
+      "2": {
+        "type": "markdown",
+        "content": "## Experiencia do usuario"
+      },
+      "3": {
+        "type": "data",
+        "title": "Usuarios ativos por aplicacao",
+        "query": "timeseries usuarios = countDistinct(dt.frontend.user.active.estimated_count),\n  by:{frontend.name}",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quantos usuarios estao usando as aplicacoes?"
+      },
+      "4": {
+        "type": "markdown",
+        "content": "## Problemas"
+      },
+      "5": {
+        "type": "data",
+        "title": "Problemas ativos (detalhe)",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"ACTIVE\"\n| fields event.start, display_id, event.name, event.category, dt.davis.affected_users_count\n| sort event.start desc\n| limit 25",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "Quais problemas estao abertos e quem eles afetam?"
+      },
+      "6": {
+        "type": "data",
+        "title": "Problemas ao longo do tempo",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate)\n| summarize problemas = count(), by:{intervalo = bin(event.start, 1h), event.category}\n| sort intervalo asc",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Como os problemas se distribuem no periodo?"
+      },
+      "7": {
+        "type": "data",
+        "title": "Problemas por categoria",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"ACTIVE\"\n| summarize problemas = count(), by:{event.category}\n| sort problemas desc",
+        "visualization": "donutChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "circleChartSettings": {
+              "valueType": "relative"
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Que tipos de problema predominam?"
+      },
+      "8": {
+        "type": "markdown",
+        "content": "## Resumo executivo"
+      },
+      "9": {
+        "type": "data",
+        "title": "Problemas ativos",
+        "query": "fetch dt.davis.problems\n| filter not(dt.davis.is_duplicate) and event.status == \"ACTIVE\"\n| summarize problemas = count()",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "problemas",
+            "label": "Problemas ativos",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Quantos problemas o Davis tem abertos agora?"
+      },
+      "10": {
+        "type": "data",
+        "title": "Taxa de erro global",
+        "query": "timeseries {\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}\n| fieldsAdd requisicoes = arraySum(total), erros = arraySum(falhas)\n| fieldsAdd taxa_erro_pct = if(requisicoes > 0, (erros * 100.0) / requisicoes, else: 0.0)\n| fields taxa_erro_pct",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "taxa_erro_pct",
+            "label": "Taxa de erro (%)",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Qual a taxa de erro consolidada do ambiente?"
+      },
+      "11": {
+        "type": "data",
+        "title": "Total de requisicoes",
+        "query": "timeseries total = sum(dt.service.request.count)\n| fieldsAdd requisicoes = arraySum(total)\n| fields requisicoes",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "singleValue": {
+            "recordField": "requisicoes",
+            "label": "Requisicoes",
+            "colorThresholdTarget": "value",
+            "alignment": "center",
+            "isIconVisible": false
+          }
+        },
+        "querySettings": {},
+        "description": "Qual o volume total de requisicoes no periodo?"
+      },
+      "12": {
+        "type": "markdown",
+        "content": "## Servicos"
+      },
+      "13": {
+        "type": "data",
+        "title": "Taxa de erro por servico",
+        "query": "timeseries {\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}, by:{dt.service.name}\n| fieldsAdd taxa_erro_pct = (falhas[] * 100.0) / total[]",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "legend": {
+              "position": "bottom",
+              "showLegend": true
+            }
+          }
+        },
+        "querySettings": {},
+        "description": "Quais servicos estao falhando e quando?"
+      },
+      "14": {
+        "type": "data",
+        "title": "Sinais de ouro por servico",
+        "query": "timeseries {\n  p50 = percentile(dt.service.request.response_time, 50),\n  p90 = percentile(dt.service.request.response_time, 90),\n  p99 = percentile(dt.service.request.response_time, 99),\n  total = sum(dt.service.request.count),\n  falhas = sum(dt.service.request.failure_count)\n}, by:{dt.service.name}\n| fieldsAdd\n    requisicoes = arraySum(total),\n    erros = arraySum(falhas),\n    p50_ms = arrayAvg(p50) / 1000,\n    p90_ms = arrayAvg(p90) / 1000,\n    p99_ms = arrayAvg(p99) / 1000\n| fieldsAdd taxa_erro_pct = if(requisicoes > 0, (erros * 100.0) / requisicoes, else: 0.0)\n| fields dt.service.name, requisicoes, erros, taxa_erro_pct, p50_ms, p90_ms, p99_ms\n| sort taxa_erro_pct desc\n| limit 25",
+        "visualization": "table",
+        "visualizationSettings": {},
+        "querySettings": {},
+        "description": "Qual a visao consolidada de trafego, erros e latencia por servico?"
+      }
+    },
+    "layouts": {
+      "1": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "2": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 2
+      },
+      "3": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      },
+      "4": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 2
+      },
+      "5": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 9
+      },
+      "6": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 7
+      },
+      "7": {
+        "x": 12,
+        "y": 23,
+        "w": 8,
+        "h": 6
+      },
+      "8": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 2
+      },
+      "9": {
+        "x": 0,
+        "y": 32,
+        "w": 6,
+        "h": 4
+      },
+      "10": {
+        "x": 6,
+        "y": 32,
+        "w": 6,
+        "h": 4
+      },
+      "11": {
+        "x": 12,
+        "y": 32,
+        "w": 6,
+        "h": 4
+      },
+      "12": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 2
+      },
+      "13": {
+        "x": 0,
+        "y": 38,
+        "w": 12,
+        "h": 7
+      },
+      "14": {
+        "x": 0,
+        "y": 45,
+        "w": 24,
+        "h": 10
+      }
+    },
+    "settings": {
+      "gridLayout": {
+        "columnsCount": 24
+      }
+    }
+  },
+  "dtdash": {
+    "origin": "biblioteca",
+    "scope": "library",
+    "client": "generico",
+    "savedAt": "2026-09-01T11:41:45",
+    "reusable": true,
+    "audience": "exec",
+    "domains": [
+      "problems",
+      "services",
+      "rum"
+    ],
+    "tags": [
+      "dtdash",
+      "exec",
+      "problems",
+      "rum",
+      "services"
+    ],
+    "tenant": "",
+    "requestText": "Resumo gerencial para a diretoria: problemas ativos do Davis, taxa de erro global, usuarios impactados, problemas por categoria e problemas ao longo do tempo.",
+    "requirements": [
+      "Resumo gerencial para a diretoria: problemas ativos do Davis, taxa de erro global, usuarios impactados, problemas por categoria e problemas ao longo do tempo."
+    ],
+    "segments": [],
+    "dataObjects": [
+      "problems",
+      "rum",
+      "services"
+    ]
+  }
+}
